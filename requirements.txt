@@ -1,5 +1,6 @@
 ultralytics==8.1.25
-opencv-python
+opencv_python==4.10.0.84
+opencv-python-headless
 streamlit
 Pillow
 matplotlib
