@@ -11,96 +11,98 @@ import os
 def load_model(path):
     return YOLO(path)
 
-st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
+st.set_page_config(page_title="YOLOv8 People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
 
 if uploaded_video is not None:
-    if "processed" not in st.session_state:
-        st.session_state.processed = False
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        tmp.write(uploaded_video.read())
+        temp_video_path = tmp.name
 
-    if not st.session_state.processed:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-            tmp.write(uploaded_video.read())
-            temp_video_path = tmp.name
+    model = load_model("best.pt")
 
-        model = load_model("best.pt")
+    cap = cv2.VideoCapture(temp_video_path)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration_sec = total_frames / fps
 
-        cap = cv2.VideoCapture(temp_video_path)
-        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration_sec = total_frames / fps
+    # Time slice config (e.g., every 10 seconds)
+    time_slice_sec = 10
+    slice_frame_count = int(fps * time_slice_sec)
+    num_slices = int(np.ceil(duration_sec / time_slice_sec))
 
-        time_slice_sec = 10
-        slice_frame_count = int(fps * time_slice_sec)
-        num_slices = int(np.ceil(duration_sec / time_slice_sec))
+    heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
+    output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
-        heatmaps = [np.zeros((frame_height, frame_width)) for _ in range(num_slices)]
-        output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
-        out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
+    stframe = st.empty()
+    progress = st.progress(0)
+    frame_count = 0
 
-        stframe = st.empty()
-        progress = st.progress(0)
-        frame_count = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
+        boxes = results[0].boxes
 
-            img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
-            boxes = results[0].boxes
+        if boxes is not None:
+            for box in boxes:
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
+                if 0 <= cy < frame_height and 0 <= cx < frame_width:
+                    slice_index = frame_count // slice_frame_count
+                    if slice_index < len(heatmaps):
+                        # Draw a soft circle to represent foot traffic density
+                        cv2.circle(heatmaps[slice_index], (cx, cy), radius=15, color=1, thickness=-1)
 
-            if boxes is not None:
-                for box in boxes:
-                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                    cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
-                    if 0 <= cy < frame_height and 0 <= cx < frame_width:
-                        slice_index = frame_count // slice_frame_count
-                        if slice_index < len(heatmaps):
-                            heatmaps[slice_index][cy, cx] += 1
+        annotated_frame = results[0].plot()
+        out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
 
-            annotated_frame = results[0].plot()
-            out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
+        if frame_count % int(fps) == 0:
+            stframe.image(annotated_frame, channels="RGB", use_container_width=True)
 
-            if frame_count % int(fps) == 0:
-                stframe.image(annotated_frame, channels="RGB", use_container_width=True)
+        frame_count += 1
+        progress.progress(min(frame_count / total_frames, 1.0))
 
-            frame_count += 1
-            progress.progress(min(frame_count / total_frames, 1.0))
+    cap.release()
+    out.release()
 
-        cap.release()
-        out.release()
+    st.success("Processing complete.")
 
-        st.session_state.output_path = output_path
-        st.session_state.heatmaps = heatmaps
-        st.session_state.processed = True
-        st.success("Processing complete.")
-
-    # Display the annotated video and heatmaps after processing
     st.subheader("Annotated Video")
-    st.video(st.session_state.output_path)
+    st.video(output_path)
 
     st.subheader("Select Heatmap Interval")
-    heatmaps = st.session_state.heatmaps
-    selected_slice = st.selectbox(
-        "Select 10-second interval:",
-        [f"{i*10}s - {(i+1)*10}s" for i in range(len(heatmaps))]
-    )
-    selected_index = int(selected_slice.split('s')[0]) // 10
+    selected_slice = st.selectbox("Select 10-second interval:", [f"{i*time_slice_sec}s - {(i+1)*time_slice_sec}s" for i in range(len(heatmaps))])
+    selected_index = int(selected_slice.split('s')[0]) // time_slice_sec
+
+    # Prepare heatmap for display
+    heatmap_data = heatmaps[selected_index]
+    normalized_map = heatmap_data / np.max(heatmap_data) if np.max(heatmap_data) > 0 else heatmap_data
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heatmaps[selected_index], cmap="hot", ax=ax, cbar=True)
-    ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
+    sns.heatmap(
+        normalized_map,
+        cmap="Blues",
+        ax=ax,
+        cbar=True,
+        xticklabels=False,
+        yticklabels=False
+    )
+    ax.set_title(f"Foot Traffic Heatmap: {selected_slice}", fontsize=16)
+    ax.axis('off')
     st.pyplot(fig)
 
     st.download_button(
         label="Download Annotated Video",
-        data=open(st.session_state.output_path, "rb").read(),
+        data=open(output_path, "rb").read(),
         file_name="annotated_output.mp4",
         mime="video/mp4"
     )
