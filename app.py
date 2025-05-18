@@ -29,21 +29,24 @@ if uploaded_video is not None:
 
     stframe = st.empty()
 
+    # Variable to store frame shape for heatmap
+    frame_shape = None
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
+        # Save shape once (height, width)
+        if frame_shape is None:
+            frame_shape = frame.shape[:2]  # (height, width)
+
         if frame_count % 10 == 0:
             # Convert frame from BGR (OpenCV) to RGB
             img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            # Ensure uint8 dtype
             img_rgb = img_rgb.astype(np.uint8)
 
-            # Pass single frame (numpy array) to predict
             results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
-
             boxes = results[0].boxes
 
             if boxes is not None:
@@ -53,9 +56,7 @@ if uploaded_video is not None:
                     footfall_points.append([cx, cy])
 
             annotated_frame = results[0].plot()
-
-            # Show the annotated frame (convert back to BGR for OpenCV if needed)
-            stframe.image(annotated_frame, channels="RGB", use_column_width=True)
+            stframe.image(annotated_frame, channels="RGB", use_container_width=True)
 
         frame_count += 1
 
@@ -63,8 +64,8 @@ if uploaded_video is not None:
 
     # Generate heatmap
     st.subheader("Foot Traffic Heatmap")
-    if footfall_points:
-        heatmap_frame = np.zeros((frame.shape[0], frame.shape[1]))
+    if footfall_points and frame_shape is not None:
+        heatmap_frame = np.zeros(frame_shape)  # shape: (height, width)
         for pt in footfall_points:
             x, y = pt
             if 0 <= y < heatmap_frame.shape[0] and 0 <= x < heatmap_frame.shape[1]:
