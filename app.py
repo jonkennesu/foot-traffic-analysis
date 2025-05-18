@@ -7,40 +7,31 @@ import matplotlib.pyplot as plt
 from ultralytics import YOLO
 import os
 
+# Load model only once
 @st.cache_resource
 def load_model(path):
     return YOLO(path)
 
-st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
-st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
+# Process video and generate heatmaps (cached to avoid re-running)
+@st.cache_data(show_spinner="Processing video, please wait...")
+def process_video(video_path, model_path, time_slice_sec):
+    model = load_model(model_path)
+    cap = cv2.VideoCapture(video_path)
 
-uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
-
-if uploaded_video is not None:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        tmp.write(uploaded_video.read())
-        temp_video_path = tmp.name
-
-    model = load_model("best.pt")
-
-    cap = cv2.VideoCapture(temp_video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration_sec = total_frames / fps
 
-    # Time slice config (e.g., every 10 seconds)
-    time_slice_sec = 10
     slice_frame_count = int(fps * time_slice_sec)
     num_slices = int(np.ceil(duration_sec / time_slice_sec))
 
     heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
+
     output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
-    stframe = st.empty()
-    progress = st.progress(0)
     frame_count = 0
 
     while True:
@@ -59,20 +50,31 @@ if uploaded_video is not None:
                 if 0 <= cy < frame_height and 0 <= cx < frame_width:
                     slice_index = frame_count // slice_frame_count
                     if slice_index < len(heatmaps):
-                        # Draw a soft circle to represent foot traffic density
-                        cv2.circle(heatmaps[slice_index], (cx, cy), radius=15, color=1, thickness=-1)
+                        cv2.circle(heatmaps[slice_index], (cx, cy), 10, 1, -1)
 
         annotated_frame = results[0].plot()
         out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
 
-        if frame_count % int(fps) == 0:
-            stframe.image(annotated_frame, channels="RGB", use_container_width=True)
-
         frame_count += 1
-        progress.progress(min(frame_count / total_frames, 1.0))
 
     cap.release()
     out.release()
+    return output_path, heatmaps, time_slice_sec
+
+
+# Streamlit UI starts here
+st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
+st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
+
+uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
+
+if uploaded_video is not None:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        tmp.write(uploaded_video.read())
+        temp_video_path = tmp.name
+
+    # Process once and reuse
+    output_path, heatmaps, interval_sec = process_video(temp_video_path, "best.pt", time_slice_sec=10)
 
     st.success("Processing complete.")
 
@@ -80,24 +82,19 @@ if uploaded_video is not None:
     st.video(output_path)
 
     st.subheader("Select Heatmap Interval")
-    selected_slice = st.selectbox("Select 10-second interval:", [f"{i*time_slice_sec}s - {(i+1)*time_slice_sec}s" for i in range(len(heatmaps))])
-    selected_index = int(selected_slice.split('s')[0]) // time_slice_sec
+    intervals = [f"{i*interval_sec}s - {(i+1)*interval_sec}s" for i in range(len(heatmaps))]
+    selected_slice = st.selectbox("Select interval:", intervals)
+    selected_index = int(selected_slice.split('s')[0]) // interval_sec
 
-    # Prepare heatmap for display
-    heatmap_data = heatmaps[selected_index]
-    normalized_map = heatmap_data / np.max(heatmap_data) if np.max(heatmap_data) > 0 else heatmap_data
+    # Normalize and display heatmap
+    heat = heatmaps[selected_index]
+    if heat.max() > 0:
+        heat = heat / heat.max()
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(
-        normalized_map,
-        cmap="Blues",
-        ax=ax,
-        cbar=True,
-        xticklabels=False,
-        yticklabels=False
-    )
-    ax.set_title(f"Foot Traffic Heatmap: {selected_slice}", fontsize=16)
-    ax.axis('off')
+    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False)
+    ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
+    ax.axis('off')  # Remove axis lines
     st.pyplot(fig)
 
     st.download_button(
