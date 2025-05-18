@@ -66,7 +66,7 @@ if uploaded_video is not None:
         out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
 
         if frame_count % int(fps) == 0:
-            stframe.image(annotated_frame, channels="RGB", use_column_width=True)
+            stframe.image(annotated_frame, channels="RGB", use_container_width=True)
 
         frame_count += 1
         progress.progress(min(frame_count / total_frames, 1.0))
