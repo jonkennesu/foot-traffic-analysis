@@ -11,29 +11,25 @@ import os
 def load_model(path):
     return YOLO(path)
 
-st.set_page_config(page_title="YOLOv8 People Detection with Heatmap", layout="centered")
+st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
 
-# Initialize session state variables
 if 'processed' not in st.session_state:
     st.session_state.processed = False
 if 'last_uploaded_name' not in st.session_state:
     st.session_state.last_uploaded_name = None
 
 if uploaded_video is not None:
-    # Reset processing flag if new video uploaded
     if st.session_state.last_uploaded_name != uploaded_video.name:
         st.session_state.processed = False
         st.session_state.last_uploaded_name = uploaded_video.name
 
-    # Create temp video file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         tmp.write(uploaded_video.read())
         temp_video_path = tmp.name
 
-    # Load model once
     model = load_model("best.pt")
 
     if not st.session_state.processed:
@@ -44,7 +40,6 @@ if uploaded_video is not None:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration_sec = total_frames / fps
 
-        # Time slice config (e.g., every 10 seconds)
         time_slice_sec = 10
         slice_frame_count = int(fps * time_slice_sec)
         num_slices = int(np.ceil(duration_sec / time_slice_sec))
@@ -87,7 +82,6 @@ if uploaded_video is not None:
         cap.release()
         out.release()
 
-        # Save results in session state to reuse on interaction
         st.session_state.heatmaps = heatmaps
         st.session_state.output_path = output_path
         st.session_state.processed = True
@@ -108,8 +102,26 @@ if uploaded_video is not None:
         heat = heat / heat.max()
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heat, cmap="hot", ax=ax, cbar=True)
+    sns.heatmap(
+        heat,
+        cmap="Blues",
+        ax=ax,
+        cbar=True,
+        cbar_kws={
+            'label': 'Foot Traffic Intensity',
+            'orientation': 'vertical',
+            'shrink': 0.6,
+            'ticks': []
+        },
+        square=True,
+        xticklabels=False,
+        yticklabels=False,
+        linecolor='white',
+        linewidth=0.1
+    )
+    ax.set_facecolor('white')
     ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
+
     st.pyplot(fig)
 
     st.download_button(
