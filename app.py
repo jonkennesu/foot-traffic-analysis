@@ -21,7 +21,6 @@ if uploaded_video is not None:
         tmp.write(uploaded_video.read())
         temp_video_path = tmp.name
 
-    # Load model only once
     model = load_model("best.pt")
 
     cap = cv2.VideoCapture(temp_video_path)
@@ -36,8 +35,15 @@ if uploaded_video is not None:
             break
 
         if frame_count % 10 == 0:
-            # FIX: Wrap frame in a list when passing to model.predict
-            results = model.predict(source=[frame], conf=0.5, classes=[0], verbose=False)
+            # Convert frame from BGR (OpenCV) to RGB
+            img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # Ensure uint8 dtype
+            img_rgb = img_rgb.astype(np.uint8)
+
+            # Pass single frame (numpy array) to predict
+            results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
+
             boxes = results[0].boxes
 
             if boxes is not None:
@@ -47,7 +53,9 @@ if uploaded_video is not None:
                     footfall_points.append([cx, cy])
 
             annotated_frame = results[0].plot()
-            stframe.image(annotated_frame, channels="BGR", use_column_width=True)
+
+            # Show the annotated frame (convert back to BGR for OpenCV if needed)
+            stframe.image(annotated_frame, channels="RGB", use_column_width=True)
 
         frame_count += 1
 
