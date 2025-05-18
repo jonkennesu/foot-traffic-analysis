@@ -1,0 +1,7 @@
+ultralytics==8.1.25
+opencv-python-headless
+streamlit
+Pillow
+matplotlib
+numpy
+scipy
