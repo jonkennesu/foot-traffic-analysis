@@ -60,7 +60,7 @@ def process_video(video_path, model, fps, frame_height, frame_width, total_frame
     return heatmaps, output_path
 
 
-st.set_page_config(page_title="YOLOv8 People Detection with Heatmap", layout="centered")
+st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
@@ -108,7 +108,7 @@ if uploaded_video is not None:
 
     heat = heatmaps[selected_index]
     if heat.max() > 0:
-        heat = heat / heat.max()  # normalize for visualization
+        heat = heat / heat.max()  
 
     fig, ax = plt.subplots(figsize=(10, 8))
     sns.heatmap(
