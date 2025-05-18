@@ -6,13 +6,12 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
 import os
-import base64
 
 @st.cache_resource
 def load_model(path):
     return YOLO(path)
 
-st.set_page_config(page_title="YOLOv8 People Detection with Heatmap", layout="centered")
+st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
@@ -32,11 +31,11 @@ if uploaded_video is not None:
     duration_sec = total_frames / fps
 
     # Time slice config (e.g., every 30 seconds)
-    time_slice_sec = 30
+    time_slice_sec = 10
     slice_frame_count = int(fps * time_slice_sec)
     num_slices = int(np.ceil(duration_sec / time_slice_sec))
 
-    heatmaps = [np.zeros((frame_height, frame_width)) for _ in range(num_slices)]
+    heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
     output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
@@ -60,7 +59,8 @@ if uploaded_video is not None:
                 if 0 <= cy < frame_height and 0 <= cx < frame_width:
                     slice_index = frame_count // slice_frame_count
                     if slice_index < len(heatmaps):
-                        heatmaps[slice_index][cy, cx] += 1
+                        # Accumulate people presence with a circle instead of a pixel
+                        cv2.circle(heatmaps[slice_index], (cx, cy), 10, 1, -1)
 
         annotated_frame = results[0].plot()
         out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
@@ -80,11 +80,18 @@ if uploaded_video is not None:
     st.video(output_path)
 
     st.subheader("Select Heatmap Interval")
-    selected_slice = st.selectbox("Select 30-second interval:", [f"{i*30}s - {(i+1)*30}s" for i in range(len(heatmaps))])
-    selected_index = int(selected_slice.split('s')[0]) // 30
+    interval_sec = time_slice_sec
+    intervals = [f"{i*interval_sec}s - {(i+1)*interval_sec}s" for i in range(len(heatmaps))]
+    selected_slice = st.selectbox("Select interval:", intervals)
+    selected_index = int(selected_slice.split('s')[0]) // interval_sec
+
+    # Normalize heatmap for visibility
+    heat = heatmaps[selected_index]
+    if heat.max() > 0:
+        heat = heat / heat.max()
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heatmaps[selected_index], cmap="hot", ax=ax, cbar=True)
+    sns.heatmap(heat, cmap="hot", ax=ax, cbar=True)
     ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
     st.pyplot(fig)
 
