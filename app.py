@@ -5,15 +5,15 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
-from PIL import Image
 import os
+import base64
 
 @st.cache_resource
 def load_model(path):
     return YOLO(path)
 
 st.set_page_config(page_title="YOLOv8 People Detection with Heatmap", layout="centered")
-st.title("People Detection and Foot Traffic Heatmap")
+st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
 
@@ -28,14 +28,21 @@ if uploaded_video is not None:
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration_sec = total_frames / fps
 
+    # Time slice config (e.g., every 30 seconds)
+    time_slice_sec = 30
+    slice_frame_count = int(fps * time_slice_sec)
+    num_slices = int(np.ceil(duration_sec / time_slice_sec))
+
+    heatmaps = [np.zeros((frame_height, frame_width)) for _ in range(num_slices)]
     output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
-    frame_count = 0
-    heatmap_frame = np.zeros((frame_height, frame_width))
+    stframe = st.empty()
     progress = st.progress(0)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_count = 0
 
     while True:
         ret, frame = cap.read()
@@ -51,10 +58,15 @@ if uploaded_video is not None:
                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                 cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
                 if 0 <= cy < frame_height and 0 <= cx < frame_width:
-                    heatmap_frame[cy, cx] += 1
+                    slice_index = frame_count // slice_frame_count
+                    if slice_index < len(heatmaps):
+                        heatmaps[slice_index][cy, cx] += 1
 
         annotated_frame = results[0].plot()
         out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
+
+        if frame_count % int(fps) == 0:
+            stframe.image(annotated_frame, channels="RGB", use_column_width=True)
 
         frame_count += 1
         progress.progress(min(frame_count / total_frames, 1.0))
@@ -67,7 +79,18 @@ if uploaded_video is not None:
     st.subheader("Annotated Video")
     st.video(output_path)
 
-    st.subheader("Foot Traffic Heatmap")
+    st.subheader("Select Heatmap Interval")
+    selected_slice = st.selectbox("Select 30-second interval:", [f"{i*30}s - {(i+1)*30}s" for i in range(len(heatmaps))])
+    selected_index = int(selected_slice.split('s')[0]) // 30
+
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heatmap_frame, cmap="hot", ax=ax, cbar=True)
+    sns.heatmap(heatmaps[selected_index], cmap="hot", ax=ax, cbar=True)
+    ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
     st.pyplot(fig)
+
+    st.download_button(
+        label="Download Annotated Video",
+        data=open(output_path, "rb").read(),
+        file_name="annotated_output.mp4",
+        mime="video/mp4"
+    )
