@@ -11,7 +11,7 @@ import os
 def load_model(path):
     return YOLO(path)
 
-st.set_page_config(page_title="YOLOv8 People Detection with Heatmap", layout="centered")
+st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
