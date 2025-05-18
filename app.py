@@ -103,7 +103,7 @@ if uploaded_video is not None:
         heat = heat / heat.max()
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False)
+    sns.heatmap(heat, cmap="hot", ax=ax, cbar=True, xticklabels=False, yticklabels=False)
     ax.tick_params(left=False, bottom=False)
     ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
     st.pyplot(fig)
