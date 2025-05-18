@@ -7,7 +7,10 @@ import matplotlib.pyplot as plt
 from ultralytics import YOLO
 from PIL import Image
 
-# Streamlit UI
+@st.cache_resource
+def load_model(path):
+    return YOLO(path)
+
 st.set_page_config(page_title="YOLOv11n People Detection with Heatmap", layout="centered")
 st.title("People Detection and Foot Traffic Heatmap")
 
@@ -18,8 +21,8 @@ if uploaded_video is not None:
         tmp.write(uploaded_video.read())
         temp_video_path = tmp.name
 
-    # Load model
-    model = YOLO("best.pt")  
+    # Load model only once
+    model = load_model("best.pt")
 
     cap = cv2.VideoCapture(temp_video_path)
     frame_count = 0
