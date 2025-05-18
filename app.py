@@ -36,7 +36,8 @@ if uploaded_video is not None:
             break
 
         if frame_count % 10 == 0:
-            results = model.predict(source=frame, conf=0.5, classes=[0], verbose=False)
+            # FIX: Wrap frame in a list when passing to model.predict
+            results = model.predict(source=[frame], conf=0.5, classes=[0], verbose=False)
             boxes = results[0].boxes
 
             if boxes is not None:
