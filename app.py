@@ -135,7 +135,11 @@ if uploaded_file is not None:
             st.image(st.session_state.first_annotated_frame, channels="RGB", use_container_width=True)
 
         st.subheader("Annotated Video")
-        st.video(st.session_state.output_path)
+
+        with open(st.session_state.output_path, "rb") as f:
+            video_bytes = f.read()
+
+        st.video(video_bytes)
 
         st.subheader("Select Heatmap Interval")
         interval_sec = 10
