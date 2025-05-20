@@ -30,6 +30,7 @@ st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_file = st.file_uploader("Upload an image or video file", type=["jpg","jpeg","png","mp4", "mov", "avi"])
 
+# Initialize session state variables
 if 'processed' not in st.session_state:
     st.session_state.processed = False
 if 'last_uploaded_name' not in st.session_state:
@@ -53,7 +54,12 @@ def reset_states_for_new_file(name):
 if uploaded_file is not None:
     if st.session_state.last_uploaded_name != uploaded_file.name:
         reset_states_for_new_file(uploaded_file.name)
-        st.experimental_rerun()
+        # Instead of rerunning forcibly, just show a message to user to click to process:
+        st.info("New file detected. Please click below to process the new file.")
+        if st.button("Process File Now"):
+            st.session_state.processed = False
+        else:
+            st.stop()
 
     file_ext = uploaded_file.name.split('.')[-1].lower()
 
@@ -65,7 +71,6 @@ if uploaded_file is not None:
         annotated_img, centers = process_frame(img, model)
 
         st.image(cv2.cvtColor(annotated_img, cv2.COLOR_RGB2BGR), caption="Annotated Image", use_column_width=True)
-
         st.success("Image processing complete — no heatmaps for images.")
 
     elif file_ext in ['mp4', 'mov', 'avi']:
@@ -116,6 +121,7 @@ if uploaded_file is not None:
                     st.session_state.first_annotated_frame = annotated_frame
                     first_frame_set = True
 
+                # Update display every second (fps frames)
                 if frame_count % int(fps) == 0:
                     stframe.image(annotated_frame, channels="RGB", use_container_width=True)
 
@@ -136,10 +142,8 @@ if uploaded_file is not None:
             st.image(st.session_state.first_annotated_frame, channels="RGB", use_container_width=True)
 
         st.subheader("Annotated Video")
-
         with open(st.session_state.output_path, "rb") as f:
             video_bytes = f.read()
-
         st.video(video_bytes)
 
         st.subheader("Select Heatmap Interval")
@@ -158,8 +162,6 @@ if uploaded_file is not None:
         ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
         st.pyplot(fig)
 
-        with open(st.session_state.output_path, "rb") as f:
-            video_bytes = f.read()
         st.download_button(
             label="Download Annotated Video",
             data=video_bytes,
