@@ -53,6 +53,7 @@ def reset_states_for_new_file(name):
 if uploaded_file is not None:
     if st.session_state.last_uploaded_name != uploaded_file.name:
         reset_states_for_new_file(uploaded_file.name)
+        st.experimental_rerun()
 
     file_ext = uploaded_file.name.split('.')[-1].lower()
 
@@ -157,7 +158,6 @@ if uploaded_file is not None:
         ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
         st.pyplot(fig)
 
-        # Download button for annotated video
         with open(st.session_state.output_path, "rb") as f:
             video_bytes = f.read()
         st.download_button(
