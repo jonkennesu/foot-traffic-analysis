@@ -30,7 +30,6 @@ st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_file = st.file_uploader("Upload an image or video file", type=["jpg","jpeg","png","mp4", "mov", "avi"])
 
-# Initialize session state variables
 if 'processed' not in st.session_state:
     st.session_state.processed = False
 if 'last_uploaded_name' not in st.session_state:
@@ -54,28 +53,23 @@ def reset_states_for_new_file(name):
 if uploaded_file is not None:
     if st.session_state.last_uploaded_name != uploaded_file.name:
         reset_states_for_new_file(uploaded_file.name)
-        # Instead of rerunning forcibly, just show a message to user to click to process:
-        st.info("New file detected. Please click below to process the new file.")
-        if st.button("Process File Now"):
-            st.session_state.processed = False
-        else:
-            st.stop()
 
     file_ext = uploaded_file.name.split('.')[-1].lower()
 
     if file_ext in ['jpg','jpeg','png']:
-        file_bytes = uploaded_file.read()
-        np_img = np.frombuffer(file_bytes, np.uint8)
-        img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+        if not st.session_state.processed:
+            file_bytes = uploaded_file.read()
+            np_img = np.frombuffer(file_bytes, np.uint8)
+            img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
+            annotated_img, centers = process_frame(img, model)
+            st.session_state.first_annotated_frame = annotated_img
+            st.session_state.processed = True
 
-        annotated_img, centers = process_frame(img, model)
-
-        st.image(cv2.cvtColor(annotated_img, cv2.COLOR_RGB2BGR), caption="Annotated Image", use_column_width=True)
+        st.image(cv2.cvtColor(st.session_state.first_annotated_frame, cv2.COLOR_RGB2BGR), caption="Annotated Image", use_column_width=True)
         st.success("Image processing complete — no heatmaps for images.")
 
     elif file_ext in ['mp4', 'mov', 'avi']:
         if not st.session_state.processed:
-
             unique_filename = f"temp_{uuid.uuid4()}.mp4"
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4", prefix=unique_filename) as tmp:
                 tmp.write(uploaded_file.read())
@@ -121,7 +115,6 @@ if uploaded_file is not None:
                     st.session_state.first_annotated_frame = annotated_frame
                     first_frame_set = True
 
-                # Update display every second (fps frames)
                 if frame_count % int(fps) == 0:
                     stframe.image(annotated_frame, channels="RGB", use_container_width=True)
 
