@@ -16,18 +16,25 @@ st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
 
+# Initialize session state
 if 'processed' not in st.session_state:
     st.session_state.processed = False
 if 'last_uploaded_name' not in st.session_state:
     st.session_state.last_uploaded_name = None
+if 'last_uploaded_content' not in st.session_state:
+    st.session_state.last_uploaded_content = None
 
+# Check if a new file is uploaded (by name or content)
 if uploaded_video is not None:
-    if st.session_state.last_uploaded_name != uploaded_video.name:
+    video_bytes = uploaded_video.getvalue()
+    if (st.session_state.last_uploaded_name != uploaded_video.name or
+        st.session_state.last_uploaded_content != video_bytes):
         st.session_state.processed = False
         st.session_state.last_uploaded_name = uploaded_video.name
+        st.session_state.last_uploaded_content = video_bytes
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        tmp.write(uploaded_video.read())
+        tmp.write(video_bytes)
         temp_video_path = tmp.name
 
     model = load_model("best.pt")
