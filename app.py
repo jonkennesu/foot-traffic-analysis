@@ -21,20 +21,21 @@ if 'processed' not in st.session_state:
     st.session_state.processed = False
 if 'last_uploaded_name' not in st.session_state:
     st.session_state.last_uploaded_name = None
-if 'last_uploaded_content' not in st.session_state:
-    st.session_state.last_uploaded_content = None
 
 if uploaded_video is not None:
+    # Always trigger processing on any upload
     st.session_state.processed = False
     st.session_state.last_uploaded_name = uploaded_video.name
-    
-        # Optional cleanup of old outputs
-        if 'output_path' in st.session_state:
-            try:
-                os.remove(st.session_state.output_path)
-            except:
-                pass
 
+    # Optional cleanup of old outputs
+    if 'output_path' in st.session_state:
+        try:
+            os.remove(st.session_state.output_path)
+        except:
+            pass
+
+    # Save uploaded video to a temp file
+    video_bytes = uploaded_video.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         tmp.write(video_bytes)
         temp_video_path = tmp.name
