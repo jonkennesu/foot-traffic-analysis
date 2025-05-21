@@ -24,14 +24,23 @@ if 'last_uploaded_name' not in st.session_state:
 if 'last_uploaded_content' not in st.session_state:
     st.session_state.last_uploaded_content = None
 
-# Check if a new file is uploaded (by name or content)
 if uploaded_video is not None:
     video_bytes = uploaded_video.getvalue()
+
+    # Reset processing if a new file is uploaded
     if (st.session_state.last_uploaded_name != uploaded_video.name or
         st.session_state.last_uploaded_content != video_bytes):
+
         st.session_state.processed = False
         st.session_state.last_uploaded_name = uploaded_video.name
         st.session_state.last_uploaded_content = video_bytes
+
+        # Optional cleanup of old outputs
+        if 'output_path' in st.session_state:
+            try:
+                os.remove(st.session_state.output_path)
+            except:
+                pass
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         tmp.write(video_bytes)
