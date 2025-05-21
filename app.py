@@ -27,15 +27,7 @@ if 'last_uploaded_content' not in st.session_state:
 if uploaded_video is not None:
     st.session_state.processed = False
     st.session_state.last_uploaded_name = uploaded_video.name
-
-    # Reset processing if a new file is uploaded
-    if (st.session_state.last_uploaded_name != uploaded_video.name or
-        st.session_state.last_uploaded_content != video_bytes):
-
-        st.session_state.processed = False
-        st.session_state.last_uploaded_name = uploaded_video.name
-        st.session_state.last_uploaded_content = video_bytes
-
+    
         # Optional cleanup of old outputs
         if 'output_path' in st.session_state:
             try:
