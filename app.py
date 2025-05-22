@@ -13,7 +13,7 @@ def load_model(path):
 def compute_file_hash(file_bytes):
     return hashlib.md5(file_bytes).hexdigest()
 
-st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
+st.set_page_config(page_title="HEHE People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
