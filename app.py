@@ -8,13 +8,12 @@ from ultralytics import YOLO
 import os
 import hashlib
 
-# Function to generate a hash for file content
-def get_file_hash(file_bytes):
-    return hashlib.md5(file_bytes).hexdigest()
-
 @st.cache_resource
 def load_model(path):
     return YOLO(path)
+
+def compute_file_hash(file_bytes):
+    return hashlib.md5(file_bytes).hexdigest()
 
 st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
@@ -22,30 +21,25 @@ st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
 
 # Initialize session state
-if 'processed' not in st.session_state:
-    st.session_state.processed = False
-if 'last_file_hash' not in st.session_state:
-    st.session_state.last_file_hash = None
+if 'processed_hash' not in st.session_state:
+    st.session_state.processed_hash = None
+if 'heatmaps' not in st.session_state:
+    st.session_state.heatmaps = None
+if 'output_path' not in st.session_state:
+    st.session_state.output_path = None
 
 if uploaded_video is not None:
     video_bytes = uploaded_video.read()
-    current_hash = get_file_hash(video_bytes)
+    current_hash = compute_file_hash(video_bytes)
 
-    # Only process if the file content is new
-    if st.session_state.get("last_file_hash") != current_hash:
-        st.session_state.processed = False
-        st.session_state.last_file_hash = current_hash
-    else:
-        st.session_state.processed = True
+    if current_hash != st.session_state.processed_hash:
+        # Save uploaded video to a temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+            tmp.write(video_bytes)
+            temp_video_path = tmp.name
 
-    # Save uploaded video to a temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        tmp.write(video_bytes)
-        temp_video_path = tmp.name
+        model = load_model("best.pt")
 
-    model = load_model("best.pt")
-
-    if not st.session_state.processed:
         cap = cv2.VideoCapture(temp_video_path)
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -53,7 +47,6 @@ if uploaded_video is not None:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration_sec = total_frames / fps
 
-        # Time slice config (e.g., every 10 seconds)
         time_slice_sec = 10
         slice_frame_count = int(fps * time_slice_sec)
         num_slices = int(np.ceil(duration_sec / time_slice_sec))
@@ -96,12 +89,14 @@ if uploaded_video is not None:
         cap.release()
         out.release()
 
+        # Save state
+        st.session_state.processed_hash = current_hash
         st.session_state.heatmaps = heatmaps
         st.session_state.output_path = output_path
-        st.session_state.processed = True
 
-    st.success("Processing complete.")
+        st.success("Processing complete.")
 
+    # Display video and heatmap controls
     st.subheader("Annotated Video")
     st.video(st.session_state.output_path)
 
@@ -111,23 +106,14 @@ if uploaded_video is not None:
     selected_slice = st.selectbox("Select interval:", intervals)
     selected_index = int(selected_slice.split('s')[0]) // interval_sec
 
+    # Normalize across all heatmaps
+    global_max = max(h.max() for h in st.session_state.heatmaps)
     heat = st.session_state.heatmaps[selected_index]
-    if heat.max() > 0:
-        heat = heat / heat.max()
+    if global_max > 0:
+        heat = heat / global_max
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns_plot = sns.heatmap(
-        heat,
-        cmap="Blues",
-        ax=ax,
-        cbar=True,
-        xticklabels=False,
-        yticklabels=False
-    )
-    # Force label on colorbar
-    colorbar = sns_plot.collections[0].colorbar
-    colorbar.set_label("Crowd Intensity")
-
+    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False, cbar_kws={'label': 'Crowd Intensity'})
     ax.tick_params(left=False, bottom=False)
     ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
     st.pyplot(fig)
