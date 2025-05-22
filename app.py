@@ -2,9 +2,13 @@ import streamlit as st
 import cv2
 import tempfile
 import numpy as np
-from ultralytics import YOLO
 import os
 import hashlib
+from ultralytics import YOLO
+import seaborn as sns
+import matplotlib.pyplot as plt
+from PIL import Image
+import io
 
 @st.cache_resource
 def load_model(path):
@@ -112,21 +116,34 @@ if uploaded_video is not None:
     if st.session_state.sample_frame is not None:
         base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
 
-        heatmap_norm = cv2.normalize(heat, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        heatmap_color = cv2.applyColorMap(heatmap_norm, cv2.COLORMAP_OCEAN)
+        # === RAW HEATMAP using Seaborn with 'Blues' ===
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        sns.heatmap(heat, cmap="Blues", cbar=False, ax=ax1)
+        ax1.axis('off')
+        buf1 = io.BytesIO()
+        fig1.savefig(buf1, format="png", bbox_inches='tight', pad_inches=0)
+        buf1.seek(0)
+        raw_heatmap_img = Image.open(buf1)
 
-        if heatmap_color.shape[:2] != base.shape[:2]:
-            heatmap_color = cv2.resize(heatmap_color, (base.shape[1], base.shape[0]))
+        st.subheader(f"Foot Traffic Heatmap: {selected_slice} (Raw - Blues)")
+        st.image(raw_heatmap_img, use_column_width=True)
 
-        overlay = cv2.addWeighted(base, 0.6, heatmap_color, 0.4, 0)
+        # === OVERLAY HEATMAP using Seaborn with 'hot' ===
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        sns.heatmap(heat, cmap="hot", cbar=False, ax=ax2)
+        ax2.axis('off')
+        buf2 = io.BytesIO()
+        fig2.savefig(buf2, format="png", bbox_inches='tight', pad_inches=0)
+        buf2.seek(0)
+        overlay_heatmap_img = Image.open(buf2).convert("RGB")
+        heatmap_np = np.array(overlay_heatmap_img)
 
-        start_time = selected_index * interval_sec
-        end_time = (selected_index + 1) * interval_sec
+        if heatmap_np.shape[:2] != base.shape[:2]:
+            heatmap_np = cv2.resize(heatmap_np, (base.shape[1], base.shape[0]))
 
-        st.subheader(f"Foot Traffic Heatmap: {start_time}s - {end_time}s (Raw)")
-        st.image(heatmap_color, channels="BGR", use_container_width=True)
+        overlay = cv2.addWeighted(base, 0.6, heatmap_np, 0.4, 0)
 
-        st.subheader(f"Foot Traffic Heatmap: {start_time}s - {end_time}s (Overlay)")
+        st.subheader(f"Foot Traffic Heatmap: {selected_slice} (Overlay - Hot)")
         st.image(overlay, channels="RGB", use_container_width=True)
     else:
         st.warning("Sample frame not available to overlay heatmap.")
