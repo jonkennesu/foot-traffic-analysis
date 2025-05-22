@@ -115,7 +115,7 @@ if uploaded_video is not None:
     if st.session_state.sample_frame is not None:
         base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
         heatmap_resized = cv2.normalize(heat, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        heatmap_color = cv2.applyColorMap(heatmap_resized, cv2.COLORMAP_JET)
+        heatmap_color = cv2.applyColorMap(heatmap_resized, cv2.COLORMAP_HOT)
         overlay = cv2.addWeighted(base, 0.6, heatmap_color, 0.4, 0)
 
         st.subheader(f"Heatmap Overlay: {selected_slice}")
