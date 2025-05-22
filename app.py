@@ -102,9 +102,10 @@ def create_clean_heatmap(heatmap, title="", cmap="Blues", target_size=640):
     heatmap_img = Image.open(buf).convert("RGB")
     plt.close(fig)
     
-    # Resize to standard size
+    # Convert to numpy array and resize to standard size
     heatmap_array = np.array(heatmap_img)
     return resize_for_display(heatmap_array, target_size)
+
 def create_heatmap_overlay(base_image, heatmap, alpha=0.4):
     """Create heatmap overlay on base image at standard size"""
     # Normalize heatmap
@@ -198,7 +199,6 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
     heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
     slice_frames = {}
     slice_people_counts = {}
-    all_annotated_frames = []
     
     # Output video setup
     output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
@@ -211,6 +211,9 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
         ret, frame = cap.read()
         if not ret:
             break
+        
+        # Convert frame to RGB first (FIXED: moved this before first use)
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         slice_index = frame_count // slice_frame_count
         
@@ -230,10 +233,9 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             slice_frames[slice_index] = temp_annotated
             # Also store original frame for overlay
-            slice_frames[f"{slice_index}_original"] = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            slice_frames[f"{slice_index}_original"] = img_rgb
         
         # Run inference
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = model.predict(
             source=img_rgb, 
             conf=conf_threshold, 
