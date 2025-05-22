@@ -2,17 +2,14 @@ import streamlit as st
 import cv2
 import tempfile
 import numpy as np
-import os
-import hashlib
-import matplotlib.cm as cm
+import seaborn as sns
+import matplotlib.pyplot as plt
 from ultralytics import YOLO
+import os
 
 @st.cache_resource
 def load_model(path):
     return YOLO(path)
-
-def compute_file_hash(file_bytes):
-    return hashlib.md5(file_bytes).hexdigest()
 
 st.set_page_config(page_title="YOLOv11 People Detection with Heatmap", layout="centered")
 st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
@@ -20,26 +17,32 @@ st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
 
 # Initialize session state
-if 'processed_hash' not in st.session_state:
-    st.session_state.processed_hash = None
-if 'heatmaps' not in st.session_state:
-    st.session_state.heatmaps = None
-if 'output_path' not in st.session_state:
-    st.session_state.output_path = None
-if 'sample_frames' not in st.session_state:
-    st.session_state.sample_frames = None
+if 'processed' not in st.session_state:
+    st.session_state.processed = False
+if 'last_uploaded_name' not in st.session_state:
+    st.session_state.last_uploaded_name = None
 
 if uploaded_video is not None:
+    # Always trigger processing on any upload
+    st.session_state.processed = False
+    st.session_state.last_uploaded_name = uploaded_video.name
+
+    # Optional cleanup of old outputs
+    if 'output_path' in st.session_state:
+        try:
+            os.remove(st.session_state.output_path)
+        except:
+            pass
+
+    # Save uploaded video to a temp file
     video_bytes = uploaded_video.read()
-    current_hash = compute_file_hash(video_bytes)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
+        tmp.write(video_bytes)
+        temp_video_path = tmp.name
 
-    if current_hash != st.session_state.processed_hash:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-            tmp.write(video_bytes)
-            temp_video_path = tmp.name
+    model = load_model("best.pt")
 
-        model = load_model("best.pt")
-
+    if not st.session_state.processed:
         cap = cv2.VideoCapture(temp_video_path)
         frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -47,13 +50,12 @@ if uploaded_video is not None:
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         duration_sec = total_frames / fps
 
+        # Time slice config (e.g., every 10 seconds)
         time_slice_sec = 10
         slice_frame_count = int(fps * time_slice_sec)
         num_slices = int(np.ceil(duration_sec / time_slice_sec))
 
         heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
-        sample_frames = [None for _ in range(num_slices)]
-
         output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
@@ -66,10 +68,6 @@ if uploaded_video is not None:
             if not ret:
                 break
 
-            slice_index = frame_count // slice_frame_count
-            if slice_index < num_slices and sample_frames[slice_index] is None:
-                sample_frames[slice_index] = frame.copy()
-
             img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
             boxes = results[0].boxes
@@ -79,6 +77,7 @@ if uploaded_video is not None:
                     x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                     cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
                     if 0 <= cy < frame_height and 0 <= cx < frame_width:
+                        slice_index = frame_count // slice_frame_count
                         if slice_index < len(heatmaps):
                             cv2.circle(heatmaps[slice_index], (cx, cy), 10, 1, -1)
 
@@ -94,14 +93,15 @@ if uploaded_video is not None:
         cap.release()
         out.release()
 
-        st.session_state.processed_hash = current_hash
         st.session_state.heatmaps = heatmaps
         st.session_state.output_path = output_path
-        st.session_state.sample_frames = sample_frames
+        st.session_state.processed = True
 
-        st.success("Processing complete.")
+    st.success("Processing complete.")
 
-    # Heatmap visualization
+    st.subheader("Annotated Video")
+    st.video(st.session_state.output_path)
+
     st.subheader("Select Heatmap Interval")
     interval_sec = 10
     intervals = [f"{i*interval_sec}s - {(i+1)*interval_sec}s" for i in range(len(st.session_state.heatmaps))]
@@ -109,32 +109,14 @@ if uploaded_video is not None:
     selected_index = int(selected_slice.split('s')[0]) // interval_sec
 
     heat = st.session_state.heatmaps[selected_index]
-    global_max = max(h.max() for h in st.session_state.heatmaps)
-    if global_max > 0:
-        heat = heat / global_max
+    if heat.max() > 0:
+        heat = heat / heat.max()
 
-    base_frame = st.session_state.sample_frames[selected_index]
-    if base_frame is not None:
-        base = cv2.cvtColor(base_frame, cv2.COLOR_BGR2RGB)
-
-        # --- RAW HEATMAP (Blues) ---
-        cmap = cm.get_cmap('Blues')
-        heatmap_color = (cmap(heat)[:, :, :3] * 255).astype(np.uint8)
-
-        # Resize if needed
-        if heatmap_color.shape[:2] != base.shape[:2]:
-            heatmap_color = cv2.resize(heatmap_color, (base.shape[1], base.shape[0]))
-
-        # Overlay heatmap on frame
-        overlay = cv2.addWeighted(base, 0.6, heatmap_color, 0.4, 0)
-
-        st.subheader(f"Heatmap (Raw, Blues) - {selected_slice}")
-        st.image(heatmap_color, channels="RGB", use_container_width=True)
-
-        st.subheader(f"Heatmap Overlay - {selected_slice}")
-        st.image(overlay, channels="RGB", use_container_width=True)
-    else:
-        st.warning("Sample frame not available to overlay heatmap.")
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False, cbar_kws={'label': 'Crowd Intensity'})
+    ax.tick_params(left=False, bottom=False)
+    ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
+    st.pyplot(fig)
 
     st.download_button(
         label="Download Annotated Video",
