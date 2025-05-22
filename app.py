@@ -27,13 +27,14 @@ if 'heatmaps' not in st.session_state:
     st.session_state.heatmaps = None
 if 'output_path' not in st.session_state:
     st.session_state.output_path = None
+if 'sample_frame' not in st.session_state:
+    st.session_state.sample_frame = None
 
 if uploaded_video is not None:
     video_bytes = uploaded_video.read()
     current_hash = compute_file_hash(video_bytes)
 
     if current_hash != st.session_state.processed_hash:
-        # Save uploaded video to a temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
             tmp.write(video_bytes)
             temp_video_path = tmp.name
@@ -64,6 +65,9 @@ if uploaded_video is not None:
             if not ret:
                 break
 
+            if frame_count == int(fps * 5):  # Save a sample frame at ~5s mark
+                st.session_state.sample_frame = frame.copy()
+
             img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
             boxes = results[0].boxes
@@ -89,34 +93,35 @@ if uploaded_video is not None:
         cap.release()
         out.release()
 
-        # Save state
         st.session_state.processed_hash = current_hash
         st.session_state.heatmaps = heatmaps
         st.session_state.output_path = output_path
 
         st.success("Processing complete.")
 
-    # Display video and heatmap controls
-    st.subheader("Annotated Video")
-    st.video(st.session_state.output_path)
-
+    # Heatmap visualization
     st.subheader("Select Heatmap Interval")
     interval_sec = 10
     intervals = [f"{i*interval_sec}s - {(i+1)*interval_sec}s" for i in range(len(st.session_state.heatmaps))]
     selected_slice = st.selectbox("Select interval:", intervals)
     selected_index = int(selected_slice.split('s')[0]) // interval_sec
 
-    # Normalize across all heatmaps
-    global_max = max(h.max() for h in st.session_state.heatmaps)
     heat = st.session_state.heatmaps[selected_index]
+    global_max = max(h.max() for h in st.session_state.heatmaps)
     if global_max > 0:
         heat = heat / global_max
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False, cbar_kws={'label': 'Crowd Intensity'})
-    ax.tick_params(left=False, bottom=False)
-    ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
-    st.pyplot(fig)
+    # Create and display transparent overlay
+    if st.session_state.sample_frame is not None:
+        base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
+        heatmap_resized = cv2.normalize(heat, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        heatmap_color = cv2.applyColorMap(heatmap_resized, cv2.COLORMAP_JET)
+        overlay = cv2.addWeighted(base, 0.6, heatmap_color, 0.4, 0)
+
+        st.subheader(f"Heatmap Overlay: {selected_slice}")
+        st.image(overlay, channels="RGB", use_container_width=True)
+    else:
+        st.warning("Sample frame not available to overlay heatmap.")
 
     st.download_button(
         label="Download Annotated Video",
