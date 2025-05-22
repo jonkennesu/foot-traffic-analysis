@@ -130,7 +130,7 @@ if uploaded_video is not None:
 
         # Overlay Heatmap (jet)
         fig2, ax2 = plt.subplots(figsize=(10, 6))
-        sns.heatmap(heat, cmap="jet", cbar=False, ax=ax2)
+        sns.heatmap(heat, cmap="hot", cbar=False, ax=ax2)
         ax2.axis('off')
         buf2 = io.BytesIO()
         fig2.savefig(buf2, format="png", bbox_inches='tight', pad_inches=0)
