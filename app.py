@@ -116,21 +116,21 @@ if uploaded_video is not None:
     if st.session_state.sample_frame is not None:
         base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
 
-        # === RAW HEATMAP using Seaborn with 'Blues' ===
+        # Heatmap (Blues)
         fig1, ax1 = plt.subplots(figsize=(10, 6))
         sns.heatmap(heat, cmap="Blues", cbar=False, ax=ax1)
         ax1.axis('off')
         buf1 = io.BytesIO()
         fig1.savefig(buf1, format="png", bbox_inches='tight', pad_inches=0)
         buf1.seek(0)
-        raw_heatmap_img = Image.open(buf1)
+        heatmap_img = Image.open(buf1)
 
-        st.subheader(f"Foot Traffic Heatmap: {selected_slice} (Raw - Blues)")
-        st.image(raw_heatmap_img, use_column_width=True)
+        st.subheader(f"Foot Traffic Heatmap: {selected_slice}")
+        st.image(heatmap_img, use_container_width=True)
 
-        # === OVERLAY HEATMAP using Seaborn with 'hot' ===
+        # Overlay Heatmap (jet)
         fig2, ax2 = plt.subplots(figsize=(10, 6))
-        sns.heatmap(heat, cmap="hot", cbar=False, ax=ax2)
+        sns.heatmap(heat, cmap="jet", cbar=False, ax=ax2)
         ax2.axis('off')
         buf2 = io.BytesIO()
         fig2.savefig(buf2, format="png", bbox_inches='tight', pad_inches=0)
@@ -143,7 +143,7 @@ if uploaded_video is not None:
 
         overlay = cv2.addWeighted(base, 0.6, heatmap_np, 0.4, 0)
 
-        st.subheader(f"Foot Traffic Heatmap: {selected_slice} (Overlay - Hot)")
+        st.subheader(f"Foot Traffic Heatmap: {selected_slice}")
         st.image(overlay, channels="RGB", use_container_width=True)
     else:
         st.warning("Sample frame not available to overlay heatmap.")
