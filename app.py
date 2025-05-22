@@ -23,14 +23,14 @@ def compute_file_hash(file_bytes):
 def detect_overcrowding(heatmap, threshold_multiplier=1.5):
     """
     Detect overcrowding based on heatmap analysis
-    Returns overcrowded regions and severity level
+    Returns overcrowded regions, severity level, and location details
     """
     # Calculate statistics
     mean_density = np.mean(heatmap[heatmap > 0])
     max_density = np.max(heatmap)
     
     if mean_density == 0:
-        return None, "No crowd detected"
+        return None, "No crowd detected", []
     
     # Define overcrowding threshold
     overcrowding_threshold = mean_density * threshold_multiplier
@@ -50,8 +50,73 @@ def detect_overcrowding(heatmap, threshold_multiplier=1.5):
     else:
         severity = "Normal"
     
-    return overcrowded_mask, severity
+    # Find crowded areas (regions)
+    crowded_locations = []
+    if np.any(overcrowded_mask):
+        # Find contours of overcrowded regions
+        overcrowded_uint8 = (overcrowded_mask * 255).astype(np.uint8)
+        contours, _ = cv2.findContours(overcrowded_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        h, w = heatmap.shape
+        for i, contour in enumerate(contours):
+            if cv2.contourArea(contour) > 100:  # Filter small regions
+                # Get bounding box
+                x, y, box_w, box_h = cv2.boundingRect(contour)
+                center_x, center_y = x + box_w//2, y + box_h//2
+                
+                # Determine location description
+                location = []
+                if center_x < w//3:
+                    location.append("Left")
+                elif center_x > 2*w//3:
+                    location.append("Right")
+                else:
+                    location.append("Center")
+                    
+                if center_y < h//3:
+                    location.append("Top")
+                elif center_y > 2*h//3:
+                    location.append("Bottom")
+                else:
+                    location.append("Middle")
+                
+                crowded_locations.append(" ".join(location))
+    
+    return overcrowded_mask, severity, crowded_locations
 
+def resize_for_display(image, target_size=640):
+    """Resize image for display while maintaining aspect ratio"""
+    if isinstance(image, np.ndarray):
+        h, w = image.shape[:2]
+        if max(h, w) > target_size:
+            if h > w:
+                new_h, new_w = target_size, int(w * target_size / h)
+            else:
+                new_h, new_w = int(h * target_size / w), target_size
+            return cv2.resize(image, (new_w, new_h))
+    return image
+
+def create_clean_heatmap(heatmap, title="", cmap="Blues"):
+    """Create a clean heatmap without ticks, numbers, or colorbar"""
+    if heatmap.max() > 0:
+        heatmap_norm = heatmap / heatmap.max()
+    else:
+        heatmap_norm = heatmap
+    
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(heatmap_norm, cmap=cmap, cbar=False, 
+                xticklabels=False, yticklabels=False, ax=ax)
+    ax.set_title(title, fontsize=14, pad=20)
+    ax.axis('off')
+    
+    # Convert to image
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches='tight', pad_inches=0)
+    buf.seek(0)
+    heatmap_img = Image.open(buf).convert("RGB")
+    plt.close(fig)
+    
+    return np.array(heatmap_img)
 def create_heatmap_overlay(base_image, heatmap, alpha=0.4):
     """Create heatmap overlay on base image"""
     # Normalize heatmap
@@ -61,8 +126,9 @@ def create_heatmap_overlay(base_image, heatmap, alpha=0.4):
         heatmap_norm = heatmap
     
     # Create heatmap visualization
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.heatmap(heatmap_norm, cmap="hot", cbar=False, ax=ax)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    sns.heatmap(heatmap_norm, cmap="hot", cbar=False, 
+                xticklabels=False, yticklabels=False, ax=ax)
     ax.axis('off')
     
     # Convert to image
@@ -156,9 +222,21 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
         
         slice_index = frame_count // slice_frame_count
         
-        # Store representative frame for each slice
-        if slice_index < num_slices and slice_index not in slice_frames:
-            slice_frames[slice_index] = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Store representative frame for each slice (with annotations)
+            if slice_index < num_slices and slice_index not in slice_frames:
+                # Run inference for this frame first
+                temp_results = model.predict(
+                    source=img_rgb, 
+                    conf=conf_threshold, 
+                    iou=nms_threshold,
+                    classes=[0], 
+                    verbose=False
+                )
+                temp_annotated = temp_results[0].plot()
+                temp_people_count = len(temp_results[0].boxes) if temp_results[0].boxes is not None else 0
+                cv2.putText(temp_annotated, f'People Count: {temp_people_count}', 
+                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                slice_frames[slice_index] = temp_annotated
         
         # Run inference
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -355,17 +433,21 @@ if uploaded_file is not None:
             
             with col1:
                 st.subheader("Original Image")
-                st.image(results['original_img'], use_container_width=True)
+                # Resize for display
+                display_original = resize_for_display(results['original_img'])
+                st.image(display_original, use_container_width=False)
             
             with col2:
                 st.subheader(f"Detected People: {results['people_count']}")
-                st.image(results['annotated_img'], use_container_width=True)
+                # Resize for display
+                display_annotated = resize_for_display(results['annotated_img'])
+                st.image(display_annotated, use_container_width=False)
             
             # Heatmap analysis
             st.subheader("🔥 Foot Traffic Heatmap Analysis")
             
             # Detect overcrowding
-            overcrowded_mask, severity = detect_overcrowding(results['heatmap'], overcrowding_sensitivity)
+            overcrowded_mask, severity, crowded_locations = detect_overcrowding(results['heatmap'], overcrowding_sensitivity)
             
             # Display overcrowding status
             severity_colors = {
@@ -377,15 +459,21 @@ if uploaded_file is not None:
             
             st.markdown(f"**Overcrowding Level:** {severity_colors.get(severity, '⚪')} {severity}")
             
+            # Show crowded locations if any
+            if crowded_locations:
+                locations_text = ", ".join(crowded_locations)
+                st.markdown(f"**Crowded Areas:** {locations_text}")
+            
             col3, col4 = st.columns(2)
             
             with col3:
                 st.subheader("Raw Heatmap")
                 if results['heatmap'].max() > 0:
-                    fig1, ax1 = plt.subplots(figsize=(10, 6))
-                    sns.heatmap(results['heatmap'], cmap="Blues", cbar=True, ax=ax1)
-                    ax1.set_title("Foot Traffic Density")
-                    st.pyplot(fig1)
+                    clean_heatmap = create_clean_heatmap(results['heatmap'], "Foot Traffic Density", "Blues")
+                    # Resize to match original image size
+                    h, w = results['original_img'].shape[:2]
+                    clean_heatmap_resized = cv2.resize(clean_heatmap, (w, h))
+                    st.image(clean_heatmap_resized, use_container_width=False)
                 else:
                     st.info("No foot traffic detected")
             
@@ -393,9 +481,11 @@ if uploaded_file is not None:
                 st.subheader("Overlay Heatmap")
                 if results['heatmap'].max() > 0:
                     overlay_img = create_heatmap_overlay(results['original_img'], results['heatmap'])
-                    st.image(overlay_img, use_container_width=True)
+                    display_overlay = resize_for_display(overlay_img)
+                    st.image(display_overlay, use_container_width=False)
                 else:
-                    st.image(results['original_img'], use_container_width=True)
+                    display_original_2 = resize_for_display(results['original_img'])
+                    st.image(display_original_2, use_container_width=False)
             
             # Download annotated image
             annotated_pil = Image.fromarray(results['annotated_img'])
@@ -429,12 +519,13 @@ if uploaded_file is not None:
                 frame = results['slice_frames'][selected_index]
                 heatmap = results['heatmaps'][selected_index]
                 
-                # Display frame
+                # Display frame with bounding boxes
                 st.subheader(f"Frame from {selected_interval}")
-                st.image(frame, use_container_width=True)
+                display_frame = resize_for_display(frame)
+                st.image(display_frame, use_container_width=False)
                 
                 # Overcrowding analysis
-                overcrowded_mask, severity = detect_overcrowding(heatmap, overcrowding_sensitivity)
+                overcrowded_mask, severity, crowded_locations = detect_overcrowding(heatmap, overcrowding_sensitivity)
                 
                 severity_colors = {
                     "Normal": "🟢",
@@ -445,6 +536,11 @@ if uploaded_file is not None:
                 
                 st.markdown(f"**Overcrowding Level:** {severity_colors.get(severity, '⚪')} {severity}")
                 
+                # Show crowded locations if any
+                if crowded_locations:
+                    locations_text = ", ".join(crowded_locations)
+                    st.markdown(f"**Crowded Areas:** {locations_text}")
+                
                 # Heatmap visualization
                 st.subheader("🔥 10-Second Interval Heatmap")
                 
@@ -453,20 +549,27 @@ if uploaded_file is not None:
                 with col5:
                     st.subheader("Raw Heatmap")
                     if heatmap.max() > 0:
-                        fig2, ax2 = plt.subplots(figsize=(10, 6))
-                        sns.heatmap(heatmap, cmap="Blues", cbar=True, ax=ax2)
-                        ax2.set_title(f"Traffic Density: {selected_interval}")
-                        st.pyplot(fig2)
+                        clean_heatmap = create_clean_heatmap(heatmap, f"Traffic Density: {selected_interval}", "Blues")
+                        # Resize to match frame size
+                        h, w = frame.shape[:2]
+                        clean_heatmap_resized = cv2.resize(clean_heatmap, (w, h))
+                        st.image(clean_heatmap_resized, use_container_width=False)
                     else:
                         st.info("No traffic detected in this interval")
                 
                 with col6:
                     st.subheader("Overlay Heatmap")
                     if heatmap.max() > 0:
+                        # Use original frame without annotations for overlay
+                        original_frame = cv2.cvtColor(results['slice_frames'][selected_index], cv2.COLOR_RGB2BGR)
+                        # Get the original frame without annotations by re-reading
+                        # For now, we'll use the annotated frame and create overlay
                         overlay_img = create_heatmap_overlay(frame, heatmap)
-                        st.image(overlay_img, use_container_width=True)
+                        display_overlay = resize_for_display(overlay_img)
+                        st.image(display_overlay, use_container_width=False)
                     else:
-                        st.image(frame, use_container_width=True)
+                        display_frame_2 = resize_for_display(frame)
+                        st.image(display_frame_2, use_container_width=False)
             
             # Overall statistics
             st.subheader("📈 Video Statistics")
