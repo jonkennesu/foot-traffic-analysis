@@ -196,66 +196,64 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration_sec = total_frames / fps
-    
+
     # Time slice configuration
     time_slice_sec = 10
     slice_frame_count = int(fps * time_slice_sec)
     num_slices = int(np.ceil(duration_sec / time_slice_sec))
-    
+
     # Initialize storage
     heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
     slice_frames = {}
     slice_people_counts = {}
-    all_annotated_frames = []
-    
+
     # Output video setup
     output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
-    
+
     frame_count = 0
-    
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-        
-        slice_index = frame_count // slice_frame_count
-        
-            # Store representative frame for each slice (with annotations)
-            if slice_index < num_slices and slice_index not in slice_frames:
-                # Run inference for this frame first
-                temp_results = model.predict(
-                    source=img_rgb, 
-                    conf=conf_threshold, 
-                    iou=nms_threshold,
-                    classes=[0], 
-                    verbose=False
-                )
-                temp_annotated = temp_results[0].plot()
-                temp_people_count = len(temp_results[0].boxes) if temp_results[0].boxes is not None else 0
-                cv2.putText(temp_annotated, f'People Count: {temp_people_count}', 
-                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                slice_frames[slice_index] = temp_annotated
-        
-        # Run inference
+
         img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        slice_index = frame_count // slice_frame_count
+
+        # Store representative frame for each slice (with annotations)
+        if slice_index < num_slices and slice_index not in slice_frames:
+            temp_results = model.predict(
+                source=img_rgb,
+                conf=conf_threshold,
+                iou=nms_threshold,
+                classes=[0],
+                verbose=False
+            )
+            temp_annotated = temp_results[0].plot()
+            temp_people_count = len(temp_results[0].boxes) if temp_results[0].boxes is not None else 0
+            cv2.putText(temp_annotated, f'People Count: {temp_people_count}',
+                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            slice_frames[slice_index] = temp_annotated
+
+        # Run inference for current frame
         results = model.predict(
-            source=img_rgb, 
-            conf=conf_threshold, 
+            source=img_rgb,
+            conf=conf_threshold,
             iou=nms_threshold,
-            classes=[0], 
+            classes=[0],
             verbose=False
         )
-        
+
         boxes = results[0].boxes
         people_count = len(boxes) if boxes is not None else 0
-        
+
         # Update people count for this slice
         if slice_index not in slice_people_counts:
             slice_people_counts[slice_index] = []
         slice_people_counts[slice_index].append(people_count)
-        
+
         # Update heatmap
         if boxes is not None:
             for box in boxes:
@@ -264,30 +262,30 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
                 if 0 <= cy < frame_height and 0 <= cx < frame_width:
                     if slice_index < len(heatmaps):
                         cv2.circle(heatmaps[slice_index], (cx, cy), 10, 1, -1)
-        
+
         # Create annotated frame
         annotated_frame = results[0].plot()
-        cv2.putText(annotated_frame, f'People Count: {people_count}', 
+        cv2.putText(annotated_frame, f'People Count: {people_count}',
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        
+
         # Write to output video
         out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
-        
+
         frame_count += 1
-        
+
         # Update progress
         progress = min(frame_count / total_frames, 1.0)
         progress_bar.progress(progress)
         status_text.text(f"Processing frame {frame_count}/{total_frames}")
-    
+
     cap.release()
     out.release()
-    
+
     # Calculate average people count per slice
     avg_people_counts = {}
     for slice_idx, counts in slice_people_counts.items():
         avg_people_counts[slice_idx] = np.mean(counts) if counts else 0
-    
+
     return heatmaps, slice_frames, output_path, avg_people_counts, num_slices
 
 # Streamlit App Configuration
