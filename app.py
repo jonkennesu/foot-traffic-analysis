@@ -26,8 +26,8 @@ if 'heatmaps' not in st.session_state:
     st.session_state.heatmaps = None
 if 'output_path' not in st.session_state:
     st.session_state.output_path = None
-if 'sample_frame' not in st.session_state:
-    st.session_state.sample_frame = None
+if 'sample_frames' not in st.session_state:
+    st.session_state.sample_frames = None
 
 if uploaded_video is not None:
     video_bytes = uploaded_video.read()
@@ -52,6 +52,8 @@ if uploaded_video is not None:
         num_slices = int(np.ceil(duration_sec / time_slice_sec))
 
         heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
+        sample_frames = [None for _ in range(num_slices)]
+
         output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
@@ -64,8 +66,9 @@ if uploaded_video is not None:
             if not ret:
                 break
 
-            if frame_count == int(fps * 5):  # Save a sample frame at ~5s mark
-                st.session_state.sample_frame = frame.copy()
+            slice_index = frame_count // slice_frame_count
+            if slice_index < num_slices and sample_frames[slice_index] is None:
+                sample_frames[slice_index] = frame.copy()
 
             img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
@@ -76,7 +79,6 @@ if uploaded_video is not None:
                     x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                     cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
                     if 0 <= cy < frame_height and 0 <= cx < frame_width:
-                        slice_index = frame_count // slice_frame_count
                         if slice_index < len(heatmaps):
                             cv2.circle(heatmaps[slice_index], (cx, cy), 10, 1, -1)
 
@@ -95,6 +97,7 @@ if uploaded_video is not None:
         st.session_state.processed_hash = current_hash
         st.session_state.heatmaps = heatmaps
         st.session_state.output_path = output_path
+        st.session_state.sample_frames = sample_frames
 
         st.success("Processing complete.")
 
@@ -110,8 +113,9 @@ if uploaded_video is not None:
     if global_max > 0:
         heat = heat / global_max
 
-    if st.session_state.sample_frame is not None:
-        base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
+    base_frame = st.session_state.sample_frames[selected_index]
+    if base_frame is not None:
+        base = cv2.cvtColor(base_frame, cv2.COLOR_BGR2RGB)
 
         # --- RAW HEATMAP (Blues) ---
         cmap = cm.get_cmap('Blues')
