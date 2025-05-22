@@ -2,9 +2,13 @@ import streamlit as st
 import cv2
 import tempfile
 import numpy as np
-from ultralytics import YOLO
 import os
 import hashlib
+from ultralytics import YOLO
+import seaborn as sns
+import matplotlib.pyplot as plt
+from PIL import Image
+import io
 
 @st.cache_resource
 def load_model(path):
@@ -25,8 +29,8 @@ if 'heatmaps' not in st.session_state:
     st.session_state.heatmaps = None
 if 'output_path' not in st.session_state:
     st.session_state.output_path = None
-if 'sample_frames' not in st.session_state:
-    st.session_state.sample_frames = None
+if 'sample_frame' not in st.session_state:
+    st.session_state.sample_frame = None
 
 if uploaded_video is not None:
     video_bytes = uploaded_video.read()
@@ -51,8 +55,6 @@ if uploaded_video is not None:
         num_slices = int(np.ceil(duration_sec / time_slice_sec))
 
         heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
-        sample_frames = [None] * num_slices
-
         output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
         out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
 
@@ -65,12 +67,8 @@ if uploaded_video is not None:
             if not ret:
                 break
 
-            slice_index = frame_count // slice_frame_count
-            if slice_index >= num_slices:
-                slice_index = num_slices - 1
-
-            if sample_frames[slice_index] is None:
-                sample_frames[slice_index] = frame.copy()
+            if frame_count == int(fps * 5):  # Save a sample frame at ~5s mark
+                st.session_state.sample_frame = frame.copy()
 
             img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = model.predict(source=img_rgb, conf=0.5, classes=[0], verbose=False)
@@ -81,7 +79,9 @@ if uploaded_video is not None:
                     x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                     cx, cy = int((x1 + x2) / 2), int((y1 + y2) / 2)
                     if 0 <= cy < frame_height and 0 <= cx < frame_width:
-                        heatmaps[slice_index][cy, cx] += 1.0
+                        slice_index = frame_count // slice_frame_count
+                        if slice_index < len(heatmaps):
+                            cv2.circle(heatmaps[slice_index], (cx, cy), 10, 1, -1)
 
             annotated_frame = results[0].plot()
             out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
@@ -98,7 +98,6 @@ if uploaded_video is not None:
         st.session_state.processed_hash = current_hash
         st.session_state.heatmaps = heatmaps
         st.session_state.output_path = output_path
-        st.session_state.sample_frames = sample_frames
 
         st.success("Processing complete.")
 
@@ -114,25 +113,40 @@ if uploaded_video is not None:
     if global_max > 0:
         heat = heat / global_max
 
-    base = None
-    if st.session_state.sample_frames and st.session_state.sample_frames[selected_index] is not None:
-        base = cv2.cvtColor(st.session_state.sample_frames[selected_index], cv2.COLOR_BGR2RGB)
+    if st.session_state.sample_frame is not None:
+        base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
 
-    if base is not None:
-        # Normalize heatmap to 0-255
-        heatmap_norm = cv2.normalize(heat, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        # Heatmap (Blues)
+        fig1, ax1 = plt.subplots(figsize=(10, 6))
+        sns.heatmap(heat, cmap="Blues", cbar=False, ax=ax1)
+        ax1.axis('off')
+        buf1 = io.BytesIO()
+        fig1.savefig(buf1, format="png", bbox_inches='tight', pad_inches=0)
+        buf1.seek(0)
+        heatmap_img = Image.open(buf1)
 
-        # Generate raw heatmap image with Jet colormap
-        heatmap_color = cv2.applyColorMap(heatmap_norm, cv2.COLORMAP_JET)
+        st.subheader(f"Foot Traffic Heatmap: {selected_slice}")
+        st.image(heatmap_img, use_container_width=True)
 
-        # Overlay heatmap on original image
-        overlay = cv2.addWeighted(base, 0.6, cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB), 0.4, 0)
+        # Overlay Heatmap (jet)
+        fig2, ax2 = plt.subplots(figsize=(10, 6))
+        sns.heatmap(heat, cmap="jet", cbar=False, ax=ax2)
+        ax2.axis('off')
+        buf2 = io.BytesIO()
+        fig2.savefig(buf2, format="png", bbox_inches='tight', pad_inches=0)
+        buf2.seek(0)
+        overlay_heatmap_img = Image.open(buf2).convert("RGB")
+        heatmap_np = np.array(overlay_heatmap_img)
 
-        st.subheader(f"Foot Traffic Heatmap Raw - {selected_slice}")
-        st.image(heatmap_color, channels="BGR", use_container_width=True)
+        if heatmap_np.shape[:2] != base.shape[:2]:
+            heatmap_np = cv2.resize(heatmap_np, (base.shape[1], base.shape[0]))
 
-        st.subheader(f"Foot Traffic Heatmap Overlay - {selected_slice}")
+        overlay = cv2.addWeighted(base, 0.6, heatmap_np, 0.4, 0)
+
+        st.subheader(f"Foot Traffic Heatmap: {selected_slice}")
         st.image(overlay, channels="RGB", use_container_width=True)
+    else:
+        st.warning("Sample frame not available to overlay heatmap.")
 
     st.download_button(
         label="Download Annotated Video",
