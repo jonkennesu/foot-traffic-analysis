@@ -22,44 +22,30 @@ def compute_file_hash(file_bytes):
 
 def detect_overcrowding(heatmap, threshold_multiplier=1.5):
     """
-    Detect overcrowding based on heatmap analysis
-    Returns overcrowded regions, severity level, and location details
+    Detect crowd locations based on heatmap analysis
+    Returns crowded locations if any crowd is detected
     """
-    # Calculate statistics
-    mean_density = np.mean(heatmap[heatmap > 0])
-    max_density = np.max(heatmap)
+    # Check if there's any crowd at all
+    if np.max(heatmap) == 0:
+        return []
     
-    if mean_density == 0:
-        return None, "No crowd detected", []
+    # Find any areas with activity (simplified approach)
+    # Use a lower threshold to detect any significant activity
+    activity_threshold = np.max(heatmap) * 0.3  # 30% of max activity
     
-    # Define overcrowding threshold
-    overcrowding_threshold = mean_density * threshold_multiplier
-    
-    # Find overcrowded regions
-    overcrowded_mask = heatmap > overcrowding_threshold
-    
-    # Calculate severity
-    overcrowded_ratio = np.sum(overcrowded_mask) / np.sum(heatmap > 0) if np.sum(heatmap > 0) > 0 else 0
-    
-    if overcrowded_ratio > 0.3:
-        severity = "High"
-    elif overcrowded_ratio > 0.15:
-        severity = "Medium"
-    elif overcrowded_ratio > 0.05:
-        severity = "Low"
-    else:
-        severity = "Normal"
+    # Find crowded regions
+    activity_mask = heatmap > activity_threshold
     
     # Find crowded areas (regions)
     crowded_locations = []
-    if np.any(overcrowded_mask):
-        # Find contours of overcrowded regions
-        overcrowded_uint8 = (overcrowded_mask * 255).astype(np.uint8)
-        contours, _ = cv2.findContours(overcrowded_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if np.any(activity_mask):
+        # Find contours of active regions
+        activity_uint8 = (activity_mask * 255).astype(np.uint8)
+        contours, _ = cv2.findContours(activity_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         h, w = heatmap.shape
         for i, contour in enumerate(contours):
-            if cv2.contourArea(contour) > 100:  # Filter small regions
+            if cv2.contourArea(contour) > 50:  # Filter very small regions
                 # Get bounding box
                 x, y, box_w, box_h = cv2.boundingRect(contour)
                 center_x, center_y = x + box_w//2, y + box_h//2
@@ -82,28 +68,28 @@ def detect_overcrowding(heatmap, threshold_multiplier=1.5):
                 
                 crowded_locations.append(" ".join(location))
     
-    return overcrowded_mask, severity, crowded_locations
+    return crowded_locations
 
 def resize_for_display(image, target_size=640):
-    """Resize image for display while maintaining aspect ratio"""
+    """Resize image for display to standard size while maintaining aspect ratio"""
     if isinstance(image, np.ndarray):
         h, w = image.shape[:2]
-        if max(h, w) > target_size:
-            if h > w:
-                new_h, new_w = target_size, int(w * target_size / h)
-            else:
-                new_h, new_w = int(h * target_size / w), target_size
-            return cv2.resize(image, (new_w, new_h))
+        # Always resize to target_size for consistency
+        if h > w:
+            new_h, new_w = target_size, int(w * target_size / h)
+        else:
+            new_h, new_w = int(h * target_size / w), target_size
+        return cv2.resize(image, (new_w, new_h))
     return image
 
-def create_clean_heatmap(heatmap, title="", cmap="Blues"):
-    """Create a clean heatmap without ticks, numbers, or colorbar"""
+def create_clean_heatmap(heatmap, title="", cmap="Blues", target_size=640):
+    """Create a clean heatmap without ticks, numbers, or colorbar at standard size"""
     if heatmap.max() > 0:
         heatmap_norm = heatmap / heatmap.max()
     else:
         heatmap_norm = heatmap
     
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(8, 8))
     sns.heatmap(heatmap_norm, cmap=cmap, cbar=False, 
                 xticklabels=False, yticklabels=False, ax=ax)
     ax.set_title(title, fontsize=14, pad=20)
@@ -116,9 +102,11 @@ def create_clean_heatmap(heatmap, title="", cmap="Blues"):
     heatmap_img = Image.open(buf).convert("RGB")
     plt.close(fig)
     
-    return np.array(heatmap_img)
+    # Resize to standard size
+    heatmap_array = np.array(heatmap_img)
+    return resize_for_display(heatmap_array, target_size)
 def create_heatmap_overlay(base_image, heatmap, alpha=0.4):
-    """Create heatmap overlay on base image"""
+    """Create heatmap overlay on base image at standard size"""
     # Normalize heatmap
     if heatmap.max() > 0:
         heatmap_norm = heatmap / heatmap.max()
@@ -126,7 +114,7 @@ def create_heatmap_overlay(base_image, heatmap, alpha=0.4):
         heatmap_norm = heatmap
     
     # Create heatmap visualization
-    fig, ax = plt.subplots(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(8, 8))
     sns.heatmap(heatmap_norm, cmap="hot", cbar=False, 
                 xticklabels=False, yticklabels=False, ax=ax)
     ax.axis('off')
@@ -139,12 +127,16 @@ def create_heatmap_overlay(base_image, heatmap, alpha=0.4):
     heatmap_np = np.array(heatmap_img)
     plt.close(fig)
     
-    # Resize heatmap to match base image
-    if heatmap_np.shape[:2] != base_image.shape[:2]:
-        heatmap_np = cv2.resize(heatmap_np, (base_image.shape[1], base_image.shape[0]))
+    # Resize both images to standard display size
+    base_resized = resize_for_display(base_image)
+    heatmap_resized = resize_for_display(heatmap_np)
+    
+    # Ensure same dimensions
+    if heatmap_resized.shape[:2] != base_resized.shape[:2]:
+        heatmap_resized = cv2.resize(heatmap_resized, (base_resized.shape[1], base_resized.shape[0]))
     
     # Create overlay
-    overlay = cv2.addWeighted(base_image, 1-alpha, heatmap_np, alpha, 0)
+    overlay = cv2.addWeighted(base_resized, 1-alpha, heatmap_resized, alpha, 0)
     return overlay
 
 def process_image(image_bytes, model, conf_threshold, nms_threshold):
@@ -196,64 +188,68 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration_sec = total_frames / fps
-
+    
     # Time slice configuration
     time_slice_sec = 10
     slice_frame_count = int(fps * time_slice_sec)
     num_slices = int(np.ceil(duration_sec / time_slice_sec))
-
+    
     # Initialize storage
     heatmaps = [np.zeros((frame_height, frame_width), dtype=np.float32) for _ in range(num_slices)]
     slice_frames = {}
     slice_people_counts = {}
-
+    all_annotated_frames = []
+    
     # Output video setup
     output_path = os.path.join(tempfile.gettempdir(), "output_annotated.mp4")
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
-
+    
     frame_count = 0
-
+    
     while True:
         ret, frame = cap.read()
         if not ret:
             break
-
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
         slice_index = frame_count // slice_frame_count
-
+        
         # Store representative frame for each slice (with annotations)
         if slice_index < num_slices and slice_index not in slice_frames:
+            # Run inference for this frame first
             temp_results = model.predict(
-                source=img_rgb,
-                conf=conf_threshold,
+                source=img_rgb, 
+                conf=conf_threshold, 
                 iou=nms_threshold,
-                classes=[0],
+                classes=[0], 
                 verbose=False
             )
             temp_annotated = temp_results[0].plot()
             temp_people_count = len(temp_results[0].boxes) if temp_results[0].boxes is not None else 0
-            cv2.putText(temp_annotated, f'People Count: {temp_people_count}',
-                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(temp_annotated, f'People Count: {temp_people_count}', 
+                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             slice_frames[slice_index] = temp_annotated
-
-        # Run inference for current frame
+            # Also store original frame for overlay
+            slice_frames[f"{slice_index}_original"] = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        
+        # Run inference
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = model.predict(
-            source=img_rgb,
-            conf=conf_threshold,
+            source=img_rgb, 
+            conf=conf_threshold, 
             iou=nms_threshold,
-            classes=[0],
+            classes=[0], 
             verbose=False
         )
-
+        
         boxes = results[0].boxes
         people_count = len(boxes) if boxes is not None else 0
-
+        
         # Update people count for this slice
         if slice_index not in slice_people_counts:
             slice_people_counts[slice_index] = []
         slice_people_counts[slice_index].append(people_count)
-
+        
         # Update heatmap
         if boxes is not None:
             for box in boxes:
@@ -262,30 +258,30 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
                 if 0 <= cy < frame_height and 0 <= cx < frame_width:
                     if slice_index < len(heatmaps):
                         cv2.circle(heatmaps[slice_index], (cx, cy), 10, 1, -1)
-
+        
         # Create annotated frame
         annotated_frame = results[0].plot()
-        cv2.putText(annotated_frame, f'People Count: {people_count}',
+        cv2.putText(annotated_frame, f'People Count: {people_count}', 
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+        
         # Write to output video
         out.write(cv2.cvtColor(annotated_frame, cv2.COLOR_RGB2BGR))
-
+        
         frame_count += 1
-
+        
         # Update progress
         progress = min(frame_count / total_frames, 1.0)
         progress_bar.progress(progress)
         status_text.text(f"Processing frame {frame_count}/{total_frames}")
-
+    
     cap.release()
     out.release()
-
+    
     # Calculate average people count per slice
     avg_people_counts = {}
     for slice_idx, counts in slice_people_counts.items():
         avg_people_counts[slice_idx] = np.mean(counts) if counts else 0
-
+    
     return heatmaps, slice_frames, output_path, avg_people_counts, num_slices
 
 # Streamlit App Configuration
@@ -444,18 +440,8 @@ if uploaded_file is not None:
             # Heatmap analysis
             st.subheader("🔥 Foot Traffic Heatmap Analysis")
             
-            # Detect overcrowding
-            overcrowded_mask, severity, crowded_locations = detect_overcrowding(results['heatmap'], overcrowding_sensitivity)
-            
-            # Display overcrowding status
-            severity_colors = {
-                "Normal": "🟢",
-                "Low": "🟡", 
-                "Medium": "🟠",
-                "High": "🔴"
-            }
-            
-            st.markdown(f"**Overcrowding Level:** {severity_colors.get(severity, '⚪')} {severity}")
+            # Detect crowd locations
+            crowded_locations = detect_overcrowding(results['heatmap'], overcrowding_sensitivity)
             
             # Show crowded locations if any
             if crowded_locations:
@@ -468,10 +454,7 @@ if uploaded_file is not None:
                 st.subheader("Raw Heatmap")
                 if results['heatmap'].max() > 0:
                     clean_heatmap = create_clean_heatmap(results['heatmap'], "Foot Traffic Density", "Blues")
-                    # Resize to match original image size
-                    h, w = results['original_img'].shape[:2]
-                    clean_heatmap_resized = cv2.resize(clean_heatmap, (w, h))
-                    st.image(clean_heatmap_resized, use_container_width=False)
+                    st.image(clean_heatmap, use_container_width=False)
                 else:
                     st.info("No foot traffic detected")
             
@@ -479,8 +462,7 @@ if uploaded_file is not None:
                 st.subheader("Overlay Heatmap")
                 if results['heatmap'].max() > 0:
                     overlay_img = create_heatmap_overlay(results['original_img'], results['heatmap'])
-                    display_overlay = resize_for_display(overlay_img)
-                    st.image(display_overlay, use_container_width=False)
+                    st.image(overlay_img, use_container_width=False)
                 else:
                     display_original_2 = resize_for_display(results['original_img'])
                     st.image(display_original_2, use_container_width=False)
@@ -522,17 +504,8 @@ if uploaded_file is not None:
                 display_frame = resize_for_display(frame)
                 st.image(display_frame, use_container_width=False)
                 
-                # Overcrowding analysis
-                overcrowded_mask, severity, crowded_locations = detect_overcrowding(heatmap, overcrowding_sensitivity)
-                
-                severity_colors = {
-                    "Normal": "🟢",
-                    "Low": "🟡", 
-                    "Medium": "🟠",
-                    "High": "🔴"
-                }
-                
-                st.markdown(f"**Overcrowding Level:** {severity_colors.get(severity, '⚪')} {severity}")
+                # Crowd location analysis
+                crowded_locations = detect_overcrowding(heatmap, overcrowding_sensitivity)
                 
                 # Show crowded locations if any
                 if crowded_locations:
@@ -548,23 +521,23 @@ if uploaded_file is not None:
                     st.subheader("Raw Heatmap")
                     if heatmap.max() > 0:
                         clean_heatmap = create_clean_heatmap(heatmap, f"Traffic Density: {selected_interval}", "Blues")
-                        # Resize to match frame size
-                        h, w = frame.shape[:2]
-                        clean_heatmap_resized = cv2.resize(clean_heatmap, (w, h))
-                        st.image(clean_heatmap_resized, use_container_width=False)
+                        st.image(clean_heatmap, use_container_width=False)
                     else:
                         st.info("No traffic detected in this interval")
                 
                 with col6:
                     st.subheader("Overlay Heatmap")
                     if heatmap.max() > 0:
-                        # Use original frame without annotations for overlay
-                        original_frame = cv2.cvtColor(results['slice_frames'][selected_index], cv2.COLOR_RGB2BGR)
-                        # Get the original frame without annotations by re-reading
-                        # For now, we'll use the annotated frame and create overlay
-                        overlay_img = create_heatmap_overlay(frame, heatmap)
-                        display_overlay = resize_for_display(overlay_img)
-                        st.image(display_overlay, use_container_width=False)
+                        # Use original frame (without annotations) for overlay
+                        original_key = f"{selected_index}_original"
+                        if original_key in results['slice_frames']:
+                            original_frame = results['slice_frames'][original_key]
+                            overlay_img = create_heatmap_overlay(original_frame, heatmap)
+                            st.image(overlay_img, use_container_width=False)
+                        else:
+                            # Fallback to annotated frame if original not available
+                            overlay_img = create_heatmap_overlay(frame, heatmap)
+                            st.image(overlay_img, use_container_width=False)
                     else:
                         display_frame_2 = resize_for_display(frame)
                         st.image(display_frame_2, use_container_width=False)
