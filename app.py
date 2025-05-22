@@ -2,9 +2,10 @@ import streamlit as st
 import cv2
 import tempfile
 import numpy as np
-from ultralytics import YOLO
 import os
 import hashlib
+import matplotlib.cm as cm
+from ultralytics import YOLO
 
 @st.cache_resource
 def load_model(path):
@@ -112,17 +113,19 @@ if uploaded_video is not None:
     if st.session_state.sample_frame is not None:
         base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
 
-        heatmap_norm = cv2.normalize(heat, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        heatmap_color = cv2.applyColorMap(heatmap_norm, cv2.COLORMAP_JET)
+        # --- RAW HEATMAP (Blues) ---
+        cmap = cm.get_cmap('Blues')
+        heatmap_color = (cmap(heat)[:, :, :3] * 255).astype(np.uint8)
 
-        # Resize heatmap to match sample frame size if needed
+        # Resize if needed
         if heatmap_color.shape[:2] != base.shape[:2]:
             heatmap_color = cv2.resize(heatmap_color, (base.shape[1], base.shape[0]))
 
+        # Overlay heatmap on frame
         overlay = cv2.addWeighted(base, 0.6, heatmap_color, 0.4, 0)
 
-        st.subheader(f"Heatmap (Raw) - {selected_slice}")
-        st.image(heatmap_color, channels="BGR", use_container_width=True)
+        st.subheader(f"Heatmap (Raw, Blues) - {selected_slice}")
+        st.image(heatmap_color, channels="RGB", use_container_width=True)
 
         st.subheader(f"Heatmap Overlay - {selected_slice}")
         st.image(overlay, channels="RGB", use_container_width=True)
