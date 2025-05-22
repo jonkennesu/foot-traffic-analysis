@@ -113,18 +113,20 @@ if uploaded_video is not None:
         base = cv2.cvtColor(st.session_state.sample_frame, cv2.COLOR_BGR2RGB)
 
         heatmap_norm = cv2.normalize(heat, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        heatmap_color = cv2.applyColorMap(heatmap_norm, cv2.COLORMAP_JET)
+        heatmap_color = cv2.applyColorMap(heatmap_norm, cv2.COLORMAP_OCEAN)
 
-        # Resize heatmap to match sample frame size if needed
         if heatmap_color.shape[:2] != base.shape[:2]:
             heatmap_color = cv2.resize(heatmap_color, (base.shape[1], base.shape[0]))
 
         overlay = cv2.addWeighted(base, 0.6, heatmap_color, 0.4, 0)
 
-        st.subheader(f"Heatmap (Raw) - {selected_slice}")
+        start_time = selected_index * interval_sec
+        end_time = (selected_index + 1) * interval_sec
+
+        st.subheader(f"Foot Traffic Heatmap: {start_time}s - {end_time}s (Raw)")
         st.image(heatmap_color, channels="BGR", use_container_width=True)
 
-        st.subheader(f"Heatmap Overlay - {selected_slice}")
+        st.subheader(f"Foot Traffic Heatmap: {start_time}s - {end_time}s (Overlay)")
         st.image(overlay, channels="RGB", use_container_width=True)
     else:
         st.warning("Sample frame not available to overlay heatmap.")
