@@ -490,7 +490,7 @@ if uploaded_file is not None:
             interval_options = []
             for i in range(results['num_slices']):
                 start_time = i * 10
-                end_time = min((i + 1) * 10, int(len(results['heatmaps']) * 10))
+                end_time = (i + 1) * 10
                 avg_count = results['avg_people_counts'].get(i, 0)
                 interval_options.append(f"{start_time}s-{end_time}s (Avg: {avg_count:.1f} people)")
             
