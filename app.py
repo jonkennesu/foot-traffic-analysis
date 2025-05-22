@@ -16,28 +16,18 @@ st.title("People Detection and Time-Sliced Foot Traffic Heatmaps")
 
 uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "avi"])
 
-# Initialize session state
 if 'processed' not in st.session_state:
     st.session_state.processed = False
 if 'last_uploaded_name' not in st.session_state:
     st.session_state.last_uploaded_name = None
 
 if uploaded_video is not None:
-    # Always trigger processing on any upload
-    st.session_state.processed = False
-    st.session_state.last_uploaded_name = uploaded_video.name
+    if st.session_state.last_uploaded_name != uploaded_video.name:
+        st.session_state.processed = False
+        st.session_state.last_uploaded_name = uploaded_video.name
 
-    # Optional cleanup of old outputs
-    if 'output_path' in st.session_state:
-        try:
-            os.remove(st.session_state.output_path)
-        except:
-            pass
-
-    # Save uploaded video to a temp file
-    video_bytes = uploaded_video.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
-        tmp.write(video_bytes)
+        tmp.write(uploaded_video.read())
         temp_video_path = tmp.name
 
     model = load_model("best.pt")
@@ -113,7 +103,7 @@ if uploaded_video is not None:
         heat = heat / heat.max()
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False, cbar_kws={'label': 'Crowd Intensity'})
+    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False)
     ax.tick_params(left=False, bottom=False)
     ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
     st.pyplot(fig)
