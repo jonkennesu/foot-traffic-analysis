@@ -6,6 +6,11 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from ultralytics import YOLO
 import os
+import hashlib
+
+# Function to generate a hash for file content
+def get_file_hash(file_bytes):
+    return hashlib.md5(file_bytes).hexdigest()
 
 @st.cache_resource
 def load_model(path):
@@ -19,23 +24,21 @@ uploaded_video = st.file_uploader("Upload a video file", type=["mp4", "mov", "av
 # Initialize session state
 if 'processed' not in st.session_state:
     st.session_state.processed = False
-if 'last_uploaded_name' not in st.session_state:
-    st.session_state.last_uploaded_name = None
+if 'last_file_hash' not in st.session_state:
+    st.session_state.last_file_hash = None
 
 if uploaded_video is not None:
-    # Always trigger processing on any upload
-    st.session_state.processed = False
-    st.session_state.last_uploaded_name = uploaded_video.name
+    video_bytes = uploaded_video.read()
+    current_hash = get_file_hash(video_bytes)
 
-    # Optional cleanup of old outputs
-    if 'output_path' in st.session_state:
-        try:
-            os.remove(st.session_state.output_path)
-        except:
-            pass
+    # Only process if the file content is new
+    if st.session_state.get("last_file_hash") != current_hash:
+        st.session_state.processed = False
+        st.session_state.last_file_hash = current_hash
+    else:
+        st.session_state.processed = True
 
     # Save uploaded video to a temp file
-    video_bytes = uploaded_video.read()
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
         tmp.write(video_bytes)
         temp_video_path = tmp.name
@@ -113,7 +116,18 @@ if uploaded_video is not None:
         heat = heat / heat.max()
 
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(heat, cmap="Blues", ax=ax, cbar=True, xticklabels=False, yticklabels=False, cbar_kws={'label': 'Crowd Intensity'})
+    sns_plot = sns.heatmap(
+        heat,
+        cmap="Blues",
+        ax=ax,
+        cbar=True,
+        xticklabels=False,
+        yticklabels=False
+    )
+    # Force label on colorbar
+    colorbar = sns_plot.collections[0].colorbar
+    colorbar.set_label("Crowd Intensity")
+
     ax.tick_params(left=False, bottom=False)
     ax.set_title(f"Foot Traffic Heatmap: {selected_slice}")
     st.pyplot(fig)
