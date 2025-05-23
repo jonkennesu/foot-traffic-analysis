@@ -703,4 +703,147 @@ if uploaded_file is not None:
                 total_people = sum(results['avg_people_counts'].values())
                 st.metric("👥 Total Avg People", f"{total_people:.1f}")
             with col_v2:
-                max_people = max(results['avg_people_counts'].values()) if results
+                max_people = max(results['avg_people_counts'].values()) if results['avg_people_counts'] else 0
+                st.metric("📈 Peak Occupancy", f"{max_people:.1f}")
+            with col_v3:
+                avg_people = np.mean(list(results['avg_people_counts'].values())) if results['avg_people_counts'] else 0
+                st.metric("📊 Average Occupancy", f"{avg_people:.1f}")
+            with col_v4:
+                duration = results['num_slices'] * 10
+                st.metric("⏱️ Duration", f"{duration}s")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Frame selection with better styling
+            st.markdown('<div class="section-header"><h3>🎯 Time Interval Analysis</h3></div>', unsafe_allow_html=True)
+            
+            interval_options = []
+            for i in range(results['num_slices']):
+                start_time = i * 10
+                end_time = (i + 1) * 10
+                avg_count = results['avg_people_counts'].get(i, 0)
+                interval_options.append(f"{start_time}s-{end_time}s (Avg: {avg_count:.1f} people)")
+            
+            col_select = st.columns([1, 2, 1])[1]
+            with col_select:
+                selected_interval = st.selectbox("Select Time Interval:", interval_options, key="interval_select")
+                selected_index = interval_options.index(selected_interval)
+            
+            if selected_index in results['slice_frames']:
+                frame = results['slice_frames'][selected_index]
+                heatmap = results['heatmaps'][selected_index]
+                
+                # Display frame with better styling
+                st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                st.markdown(f"#### 🎬 Frame Analysis: {selected_interval}")
+                display_frame = resize_for_display(frame)
+                st.image(display_frame, use_container_width=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Crowd location analysis
+                crowded_locations = detect_overcrowding(heatmap, overcrowding_sensitivity)
+                
+                if crowded_locations:
+                    st.markdown('<div class="info-box">', unsafe_allow_html=True)
+                    st.markdown(f"**🚨 Crowded Areas in this interval:** {', '.join(crowded_locations)}")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                # Heatmap visualization
+                st.markdown('<div class="section-header"><h3>🔥 10-Second Interval Heatmap</h3></div>', unsafe_allow_html=True)
+                
+                col5, col6 = st.columns(2)
+                
+                with col5:
+                    st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                    st.markdown("#### Raw Heatmap")
+                    if heatmap.max() > 0:
+                        clean_heatmap = create_clean_heatmap(heatmap, f"Traffic Density: {selected_interval}", "Blues")
+                        st.image(clean_heatmap, use_container_width=True)
+                    else:
+                        st.info("No traffic detected in this interval")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                
+                with col6:
+                    st.markdown('<div class="image-container">', unsafe_allow_html=True)
+                    st.markdown("#### Overlay Heatmap")
+                    if heatmap.max() > 0:
+                        # Use original frame (without annotations) for overlay
+                        original_key = f"{selected_index}_original"
+                        if original_key in results['slice_frames']:
+                            original_frame = results['slice_frames'][original_key]
+                            overlay_img = create_heatmap_overlay(original_frame, heatmap)
+                            st.image(overlay_img, use_container_width=True)
+                        else:
+                            # Fallback to annotated frame if original not available
+                            overlay_img = create_heatmap_overlay(frame, heatmap)
+                            st.image(overlay_img, use_container_width=True)
+                    else:
+                        display_frame_2 = resize_for_display(frame)
+                        st.image(display_frame_2, use_container_width=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+            
+            # Enhanced time series plot with Plotly
+            st.markdown('<div class="section-header"><h3>📈 Traffic Timeline Analysis</h3></div>', unsafe_allow_html=True)
+            
+            if results['avg_people_counts']:
+                times = [i * 10 for i in results['avg_people_counts'].keys()]
+                counts = list(results['avg_people_counts'].values())
+                
+                # Create interactive Plotly chart
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=times, 
+                    y=counts,
+                    mode='lines+markers',
+                    name='People Count',
+                    line=dict(color='#4facfe', width=3),
+                    marker=dict(size=8, color='#00f2fe'),
+                    hovertemplate='<b>Time:</b> %{x}s<br><b>People:</b> %{y:.1f}<extra></extra>'
+                ))
+                
+                fig.update_layout(
+                    title="Foot Traffic Over Time",
+                    title_font_size=20,
+                    xaxis_title="Time (seconds)",
+                    yaxis_title="Average People Count",
+                    template="plotly_white",
+                    hovermode="x unified",
+                    height=400,
+                    font=dict(size=12)
+                )
+                
+                fig.update_xaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                fig.update_yaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # Download section for video
+            st.markdown('<div class="section-header"><h3>📥 Download Results</h3></div>', unsafe_allow_html=True)
+            col_download_video = st.columns([1, 2, 1])[1]
+            with col_download_video:
+                if os.path.exists(results['output_path']):
+                    with open(results['output_path'], "rb") as video_file:
+                        st.download_button(
+                            label="📥 Download Annotated Video",
+                            data=video_file.read(),
+                            file_name="retail_analysis_video.mp4",
+                            mime="video/mp4"
+                        )
+
+else:
+    # Welcome message when no file is uploaded
+    st.markdown("""
+    <div class="info-box">
+        <h3>🚀 Welcome to Retail Analytics!</h3>
+        <p>Upload an image or video to get started with AI-powered foot traffic analysis. 
+        Our system will help you understand customer behavior patterns and optimize your retail space.</p>
+        
+        <h4>📋 What you'll get:</h4>
+        <ul>
+            <li><strong>People Detection:</strong> Accurate count of customers in your space</li>
+            <li><strong>Traffic Heatmaps:</strong> Visual representation of high-activity areas</li>
+            <li><strong>Crowding Analysis:</strong> Identification of congested zones</li>
+            <li><strong>Time Analysis:</strong> Track patterns over time (for videos)</li>
+            <li><strong>Actionable Insights:</strong> Data-driven recommendations for optimization</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
