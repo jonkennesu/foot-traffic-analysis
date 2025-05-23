@@ -1045,35 +1045,31 @@ if uploaded_file is not None:
 
 
 else:
-    # Welcome Screen
+    # Welcome Screen - Simple Version
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    
+    st.markdown("### 🚀 Get Started")
     st.markdown("""
-    <div class="glass-card">
-        <h3 style="margin-top: 0; color: #1e293b; font-weight: 600; font-size: 1.5rem;">🚀 Get Started</h3>
-        <p style="color: #64748b; font-size: 1.1rem; margin-bottom: 2rem;">
-            Upload an image or video to analyze customer foot traffic patterns with AI-powered detection and generate actionable insights for your retail space.
-        </p>
-        
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-top: 2rem;">
-            <div style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 3rem; margin-bottom: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">👥</div>
-                <div style="font-weight: 600; color: #1e293b; font-size: 1.1rem; margin-bottom: 0.5rem;">People Detection</div>
-                <div style="font-size: 0.95rem; color: #64748b;">Accurate real-time customer counting with confidence scores</div>
-            </div>
-            <div style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 3rem; margin-bottom: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">🔥</div>
-                <div style="font-weight: 600; color: #1e293b; font-size: 1.1rem; margin-bottom: 0.5rem;">Traffic Heatmaps</div>
-                <div style="font-size: 0.95rem; color: #64748b;">Visual flow patterns and high-activity zone identification</div>
-            </div>
-            <div style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 3rem; margin-bottom: 1rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">📊</div>
-                <div style="font-weight: 600; color: #1e293b; font-size: 1.1rem; margin-bottom: 0.5rem;">Smart Analytics</div>
-                <div style="font-size: 0.95rem; color: #64748b;">Crowding detection and space optimization insights</div>
-            </div>
-        </div>
-        
-        <div style="margin-top: 2.5rem; padding: 1.5rem; background: rgba(102, 126, 234, 0.05); border-radius: 12px; border-left: 4px solid #667eea;">
-            <div style="font-weight: 600; color: #1e293b; margin-bottom: 0.5rem;">💡 Pro Tip</div>
-            <div style="color: #64748b;">For best results, ensure good lighting and clear view of people in your images or videos. The AI works best with high-resolution content.</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    Upload an image or video to analyze customer foot traffic patterns with AI-powered detection 
+    and generate actionable insights for your retail space.
+    """)
+    
+    # Create three columns for features
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("#### 👥 People Detection")
+        st.markdown("Accurate real-time customer counting with confidence scores")
+    
+    with col2:
+        st.markdown("#### 🔥 Traffic Heatmaps") 
+        st.markdown("Visual flow patterns and high-activity zone identification")
+    
+    with col3:
+        st.markdown("#### 📊 Smart Analytics")
+        st.markdown("Crowding detection and space optimization insights")
+    
+    # Pro tip section
+    st.info("💡 **Pro Tip:** For best results, ensure good lighting and clear view of people in your images or videos. The AI works best with high-resolution content.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
