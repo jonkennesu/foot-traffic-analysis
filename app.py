@@ -21,54 +21,56 @@ def compute_file_hash(file_bytes):
     return hashlib.md5(file_bytes).hexdigest()
 
 def detect_overcrowding(heatmap, threshold_multiplier=1.5):
-    """
-    Detect crowd locations based on heatmap analysis
-    Returns crowded locations if any crowd is detected
-    """
-    # Check if there's any crowd at all
     if np.max(heatmap) == 0:
         return []
     
-    # Find any areas with activity (simplified approach)
-    # Use a lower threshold to detect any significant activity
-    activity_threshold = np.max(heatmap) * 0.3  # 30% of max activity
+    # Apply sensitivity multiplier properly
+    activity_threshold = (np.max(heatmap) * 0.3) * threshold_multiplier
     
     # Find crowded regions
     activity_mask = heatmap > activity_threshold
     
-    # Find crowded areas (regions)
+    if not np.any(activity_mask):
+        return []
+    
+    # Use morphological operations to consolidate nearby regions
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (20, 20))
+    consolidated_mask = cv2.morphologyEx(activity_mask.astype(np.uint8), cv2.MORPH_CLOSE, kernel)
+    
+    # Find contours with minimum area threshold
+    contours, _ = cv2.findContours(consolidated_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
     crowded_locations = []
-    if np.any(activity_mask):
-        # Find contours of active regions
-        activity_uint8 = (activity_mask * 255).astype(np.uint8)
-        contours, _ = cv2.findContours(activity_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        h, w = heatmap.shape
-        for i, contour in enumerate(contours):
-            if cv2.contourArea(contour) > 50:  # Filter very small regions
-                # Get bounding box
-                x, y, box_w, box_h = cv2.boundingRect(contour)
-                center_x, center_y = x + box_w//2, y + box_h//2
+    h, w = heatmap.shape
+    min_area = (h * w) * 0.02  # At least 2% of image area
+    
+    for contour in contours:
+        if cv2.contourArea(contour) > min_area:
+            # Get center of mass instead of bounding box center
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
                 
-                # Determine location description
+                # Determine location
                 location = []
-                if center_x < w//3:
+                if cx < w//3:
                     location.append("Left")
-                elif center_x > 2*w//3:
+                elif cx > 2*w//3:
                     location.append("Right")
                 else:
                     location.append("Center")
                     
-                if center_y < h//3:
+                if cy < h//3:
                     location.append("Top")
-                elif center_y > 2*h//3:
+                elif cy > 2*h//3:
                     location.append("Bottom")
                 else:
                     location.append("Middle")
                 
                 crowded_locations.append(" ".join(location))
     
-    return crowded_locations
+    return list(set(crowded_locations))  # Remove duplicates
 
 def resize_for_display(image, target_size=640):
     """Resize image for display to standard size while maintaining aspect ratio"""
