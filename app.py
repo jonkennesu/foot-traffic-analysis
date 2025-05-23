@@ -10,8 +10,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import io
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+# Removed plotly imports - using matplotlib instead
 
 # Configure page with custom theme
 st.set_page_config(
@@ -781,40 +780,48 @@ if uploaded_file is not None:
                         st.image(display_frame_2, use_container_width=True)
                     st.markdown('</div>', unsafe_allow_html=True)
             
-            # Enhanced time series plot with Plotly
+            # Enhanced time series plot with matplotlib
             st.markdown('<div class="section-header"><h3>📈 Traffic Timeline Analysis</h3></div>', unsafe_allow_html=True)
             
             if results['avg_people_counts']:
                 times = [i * 10 for i in results['avg_people_counts'].keys()]
                 counts = list(results['avg_people_counts'].values())
                 
-                # Create interactive Plotly chart
-                fig = go.Figure()
-                fig.add_trace(go.Scatter(
-                    x=times, 
-                    y=counts,
-                    mode='lines+markers',
-                    name='People Count',
-                    line=dict(color='#4facfe', width=3),
-                    marker=dict(size=8, color='#00f2fe'),
-                    hovertemplate='<b>Time:</b> %{x}s<br><b>People:</b> %{y:.1f}<extra></extra>'
-                ))
+                # Create beautiful matplotlib chart
+                fig, ax = plt.subplots(figsize=(12, 6))
                 
-                fig.update_layout(
-                    title="Foot Traffic Over Time",
-                    title_font_size=20,
-                    xaxis_title="Time (seconds)",
-                    yaxis_title="Average People Count",
-                    template="plotly_white",
-                    hovermode="x unified",
-                    height=400,
-                    font=dict(size=12)
-                )
+                # Create gradient background
+                ax.set_facecolor('#f8f9ff')
                 
-                fig.update_xaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                fig.update_yaxis(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                # Plot line with markers
+                ax.plot(times, counts, marker='o', linewidth=3, markersize=8, 
+                       color='#4facfe', markerfacecolor='#00f2fe', 
+                       markeredgecolor='white', markeredgewidth=2)
                 
-                st.plotly_chart(fig, use_container_width=True)
+                # Fill area under curve
+                ax.fill_between(times, counts, alpha=0.3, color='#4facfe')
+                
+                # Styling
+                ax.set_xlabel("Time (seconds)", fontsize=14, fontweight='bold')
+                ax.set_ylabel("Average People Count", fontsize=14, fontweight='bold')
+                ax.set_title("Foot Traffic Over Time", fontsize=18, fontweight='bold', pad=20)
+                
+                # Grid styling
+                ax.grid(True, alpha=0.3, linestyle='--')
+                ax.set_axisbelow(True)
+                
+                # Enhance appearance
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_color('#cccccc')
+                ax.spines['bottom'].set_color('#cccccc')
+                
+                # Set y-axis to start from 0
+                ax.set_ylim(bottom=0)
+                
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close(fig)
             
             # Download section for video
             st.markdown('<div class="section-header"><h3>📥 Download Results</h3></div>', unsafe_allow_html=True)
