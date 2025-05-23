@@ -1,4 +1,3 @@
-
 import streamlit as st
 import cv2
 import tempfile
@@ -666,7 +665,7 @@ with st.sidebar:
     - **Lower values (0.1-0.3)**: Stricter, removes more overlaps
     - **Higher values (0.5-0.9)**: Allows more overlap
     - **For crowded scenes**: Use lower values
-    """)
+    """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.markdown('<div class="sidebar-section">', unsafe_allow_html=True)
@@ -677,7 +676,7 @@ with st.sidebar:
     • **Crowding Analysis** with location identification  
     • **Time-based Insights** for video content  
     • **Export Options** for reporting  
-    """)
+    """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
 # File Upload Section
