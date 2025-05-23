@@ -11,262 +11,6 @@ from PIL import Image
 import io
 import pandas as pd
 
-# Configure page with minimal theme
-st.set_page_config(
-    page_title="Retail Analytics", 
-    layout="wide",
-    initial_sidebar_state="expanded",
-    page_icon="📊"
-)
-
-# Modern minimal CSS
-st.markdown("""
-<style>
-    /* Import modern font */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
-    
-    /* Global styling */
-    .stApp {
-        background-color: #fafafa;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* Hide streamlit elements */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    .stDeployButton {display: none;}
-    header {visibility: hidden;}
-    
-    /* Main content area */
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-    
-    /* Header styling */
-    .app-header {
-        background: #ffffff;
-        padding: 2.5rem 0;
-        margin-bottom: 3rem;
-        border-bottom: 1px solid #e5e7eb;
-    }
-    
-    .app-title {
-        font-size: 2.5rem;
-        font-weight: 600;
-        color: #111827;
-        margin: 0;
-        text-align: center;
-    }
-    
-    .app-subtitle {
-        font-size: 1.1rem;
-        color: #6b7280;
-        margin-top: 0.5rem;
-        text-align: center;
-        font-weight: 400;
-    }
-    
-    /* Card components */
-    .card {
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 1.5rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e5e7eb;
-        margin-bottom: 1.5rem;
-    }
-    
-    .card-header {
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: #111827;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 1px solid #f3f4f6;
-    }
-    
-    /* Metrics styling */
-    .metric-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin: 2rem 0;
-    }
-    
-    .metric-card {
-        background: #ffffff;
-        padding: 1.5rem;
-        border-radius: 12px;
-        border: 1px solid #e5e7eb;
-        text-align: center;
-        transition: all 0.2s ease;
-    }
-    
-    .metric-card:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 600;
-        color: #111827;
-        margin-bottom: 0.25rem;
-    }
-    
-    .metric-label {
-        font-size: 0.875rem;
-        color: #6b7280;
-        font-weight: 500;
-    }
-    
-    /* Section headers */
-    .section-title {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: #111827;
-        margin: 3rem 0 1.5rem 0;
-        padding-bottom: 0.75rem;
-        border-bottom: 2px solid #f3f4f6;
-    }
-    
-    /* Image containers */
-    .image-card {
-        background: #ffffff;
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid #e5e7eb;
-        margin-bottom: 1.5rem;
-    }
-    
-    .image-title {
-        background: #f9fafb;
-        padding: 1rem 1.5rem;
-        font-weight: 500;
-        color: #374151;
-        border-bottom: 1px solid #e5e7eb;
-        margin: 0;
-    }
-    
-    .image-content {
-        padding: 1rem;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        background: #ffffff;
-        border-right: 1px solid #e5e7eb;
-    }
-    
-    .sidebar-card {
-        background: #f9fafb;
-        padding: 1.5rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        border: 1px solid #e5e7eb;
-    }
-    
-    .sidebar-title {
-        font-size: 1rem;
-        font-weight: 600;
-        color: #111827;
-        margin-bottom: 1rem;
-    }
-    
-    /* Button styling */
-    .stDownloadButton > button {
-        background: #111827;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 0.75rem 1.5rem;
-        font-weight: 500;
-        font-size: 0.9rem;
-        transition: all 0.2s ease;
-        width: 100%;
-    }
-    
-    .stDownloadButton > button:hover {
-        background: #374151;
-        transform: translateY(-1px);
-    }
-    
-    /* Upload area */
-    .stFileUploader > div > div {
-        background: #ffffff;
-        border: 2px dashed #d1d5db;
-        border-radius: 12px;
-        padding: 2rem;
-        text-align: center;
-    }
-    
-    .stFileUploader > div > div:hover {
-        border-color: #9ca3af;
-        background: #f9fafb;
-    }
-    
-    /* Alert boxes */
-    .alert {
-        padding: 1rem 1.5rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-        border-left: 4px solid;
-    }
-    
-    .alert-success {
-        background: #f0fdf4;
-        border-left-color: #22c55e;
-        color: #166534;
-    }
-    
-    .alert-info {
-        background: #eff6ff;
-        border-left-color: #3b82f6;
-        color: #1e40af;
-    }
-    
-    .alert-warning {
-        background: #fffbeb;
-        border-left-color: #f59e0b;
-        color: #92400e;
-    }
-    
-    /* Progress bars */
-    .stProgress > div > div {
-        background: #111827;
-        border-radius: 4px;
-    }
-    
-    /* Selectbox */
-    .stSelectbox > div > div {
-        background: #ffffff;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-    }
-    
-    /* Sliders */
-    .stSlider > div > div > div {
-        background: #f3f4f6;
-    }
-    
-    .stSlider > div > div > div > div {
-        background: #111827;
-    }
-    
-    /* Remove default streamlit spacing */
-    .element-container {
-        margin-bottom: 0;
-    }
-    
-    /* Custom spacing utilities */
-    .mt-4 { margin-top: 2rem; }
-    .mb-4 { margin-bottom: 2rem; }
-    .text-center { text-align: center; }
-</style>
-""", unsafe_allow_html=True)
-
-# All your existing functions remain the same
 @st.cache_resource
 def load_model(path):
     """Load YOLO model with caching"""
@@ -544,83 +288,64 @@ def process_video(video_path, model, conf_threshold, nms_threshold, progress_bar
     
     return heatmaps, slice_frames, output_path, avg_people_counts, num_slices
 
-# Modern header
-st.markdown("""
-<div class="app-header">
-    <h1 class="app-title">Retail Analytics</h1>
-    <p class="app-subtitle">AI-powered customer flow analysis for retail optimization</p>
-</div>
-""", unsafe_allow_html=True)
+# Streamlit App Configuration
+st.set_page_config(page_title="Retail Foot Traffic Analyzer", layout="wide")
+st.title("🏪 Retail Foot Traffic Analysis System")
+st.markdown("Upload an image or video to analyze foot traffic patterns and detect overcrowding in your retail store.")
 
-# Clean sidebar
-with st.sidebar:
-    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-title">Detection Settings</div>', unsafe_allow_html=True)
-    
-    # Model loading
-    @st.cache_resource
-    def get_model():
-        try:
-            return load_model("best.pt")
-        except:
-            st.error("Model file 'best.pt' not found. Please ensure the YOLO model is available.")
-            return None
+# Sidebar for controls
+st.sidebar.header("⚙️ Detection Settings")
 
-    model = get_model()
+# Model loading
+@st.cache_resource
+def get_model():
+    try:
+        return load_model("best.pt")
+    except:
+        st.error("Model file 'best.pt' not found. Please ensure the YOLO model is available.")
+        return None
 
-    if model is None:
-        st.stop()
+model = get_model()
 
-    conf_threshold = st.slider(
-        "Confidence Threshold", 
-        min_value=0.1, 
-        max_value=1.0, 
-        value=0.5, 
-        step=0.05,
-        help="Minimum confidence score for detections"
-    )
+if model is None:
+    st.stop()
 
-    nms_threshold = st.slider(
-        "NMS Threshold", 
-        min_value=0.1, 
-        max_value=1.0, 
-        value=0.4, 
-        step=0.05,
-        help="Controls overlap between detections"
-    )
+# Threshold controls
+conf_threshold = st.sidebar.slider(
+    "Confidence Threshold", 
+    min_value=0.1, 
+    max_value=1.0, 
+    value=0.5, 
+    step=0.05,
+    help="Minimum confidence score for detections"
+)
 
-    overcrowding_sensitivity = st.slider(
-        "Overcrowding Sensitivity",
-        min_value=1.0,
-        max_value=3.0,
-        value=1.5,
-        step=0.1,
-        help="Lower values detect crowding more easily"
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-title">Features</div>', unsafe_allow_html=True)
-    st.markdown("""
-    **Real-time Detection** with confidence scoring
-    
-    **Visual Heatmaps** showing traffic patterns
-    
-    **Crowding Analysis** with location identification
-    
-    **Time-based Insights** for video content
-    
-    **Export Options** for reporting
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
+nms_threshold = st.sidebar.slider(
+    "NMS (Non-Maximum Suppression) Threshold", 
+    min_value=0.1, 
+    max_value=1.0, 
+    value=0.4, 
+    step=0.05,
+    help="Controls overlap between detections. Lower values = less overlap allowed"
+)
 
-# File upload section
-st.markdown('<h2 class="section-title">Upload Content</h2>', unsafe_allow_html=True)
+st.sidebar.markdown("**NMS Threshold Explanation:**")
+st.sidebar.info("NMS removes duplicate detections of the same person. Lower values (0.1-0.3) are stricter and remove more overlapping boxes, while higher values (0.5-0.9) allow more overlap. For crowded scenes, use lower values.")
 
+overcrowding_sensitivity = st.sidebar.slider(
+    "Overcrowding Sensitivity",
+    min_value=1.0,
+    max_value=3.0,
+    value=1.5,
+    step=0.1,
+    help="Lower values = more sensitive to overcrowding"
+)
+
+# File upload
 uploaded_file = st.file_uploader(
-    "Choose an image or video file", 
+    "Upload Image or Video", 
     type=["jpg", "jpeg", "png", "mp4", "mov", "avi"],
-    help="Supported: JPG, PNG, MP4, MOV, AVI"
+    help="Supported formats: JPG, PNG for images; MP4, MOV, AVI for videos"
 )
 
 # Initialize session state
@@ -634,7 +359,7 @@ if 'results' not in st.session_state:
 if uploaded_file is not None:
     file_bytes = uploaded_file.read()
     current_hash = compute_file_hash(file_bytes)
-    file_type = uploaded_file.type.split('/')[0]
+    file_type = uploaded_file.type.split('/')[0]  # 'image' or 'video'
     
     # Check if we need to reprocess
     need_processing = (
@@ -647,6 +372,8 @@ if uploaded_file is not None:
         st.session_state.file_type = file_type
         
         if file_type == 'image':
+            st.subheader("📊 Image Analysis Results")
+            
             with st.spinner("Processing image..."):
                 original_img, annotated_img, heatmap, people_count, detections = process_image(
                     file_bytes, model, conf_threshold, nms_threshold
@@ -660,9 +387,11 @@ if uploaded_file is not None:
                     'detections': detections
                 }
             
-            st.markdown(f'<div class="alert alert-success">✓ Processing complete! Detected {people_count} people</div>', unsafe_allow_html=True)
+            st.success(f"✅ Processing complete! Detected {people_count} people.")
             
         elif file_type == 'video':
+            st.subheader("🎥 Video Analysis Results")
+            
             # Save video to temporary file
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp:
                 tmp.write(file_bytes)
@@ -690,128 +419,75 @@ if uploaded_file is not None:
             
             progress_bar.empty()
             status_text.empty()
-            st.markdown('<div class="alert alert-success">✓ Video processing complete</div>', unsafe_allow_html=True)
+            st.success("✅ Video processing complete!")
     
     # Display results
     if st.session_state.results is not None:
         if st.session_state.file_type == 'image':
             results = st.session_state.results
             
-            # Metrics
-            st.markdown('<div class="metric-grid">', unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{results['people_count']}</div>
-                    <div class="metric-label">People Detected</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                crowded_count = len(detect_overcrowding(results['heatmap'], overcrowding_sensitivity))
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{crowded_count}</div>
-                    <div class="metric-label">Crowded Areas</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                density = "High" if results['people_count'] > 10 else "Medium" if results['people_count'] > 5 else "Low"
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{density}</div>
-                    <div class="metric-label">Traffic Density</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Image comparison
-            st.markdown('<h2 class="section-title">Detection Results</h2>', unsafe_allow_html=True)
-            
+            # Display original and annotated images side by side
             col1, col2 = st.columns(2)
             
             with col1:
-                st.markdown("""
-                <div class="image-card">
-                    <h4 class="image-title">Overlay Analysis</h4>
-                    <div class="image-content">
-                """, unsafe_allow_html=True)
+                st.subheader("Original Image")
+                # Resize for display
+                display_original = resize_for_display(results['original_img'])
+                st.image(display_original, use_container_width=False)
+            
+            with col2:
+                st.subheader(f"Detected People: {results['people_count']}")
+                # Resize for display
+                display_annotated = resize_for_display(results['annotated_img'])
+                st.image(display_annotated, use_container_width=False)
+            
+            # Heatmap analysis
+            st.subheader("🔥 Foot Traffic Heatmap Analysis")
+            
+            # Detect crowd locations
+            crowded_locations = detect_overcrowding(results['heatmap'], overcrowding_sensitivity)
+            
+            # Show crowded locations if any
+            if crowded_locations:
+                locations_text = ", ".join(crowded_locations)
+                st.markdown(f"**Crowded Areas:** {locations_text}")
+            
+            col3, col4 = st.columns(2)
+            
+            with col3:
+                st.subheader("Raw Heatmap")
+                if results['heatmap'].max() > 0:
+                    clean_heatmap = create_clean_heatmap(results['heatmap'], "Foot Traffic Density", "Blues")
+                    st.image(clean_heatmap, use_container_width=False)
+                else:
+                    st.info("No foot traffic detected")
+            
+            with col4:
+                st.subheader("Overlay Heatmap")
                 if results['heatmap'].max() > 0:
                     overlay_img = create_heatmap_overlay(results['original_img'], results['heatmap'])
-                    st.image(overlay_img, use_container_width=True)
+                    st.image(overlay_img, use_container_width=False)
                 else:
                     display_original_2 = resize_for_display(results['original_img'])
-                    st.image(display_original_2, use_container_width=True)
-                st.markdown('</div></div>', unsafe_allow_html=True)
+                    st.image(display_original_2, use_container_width=False)
             
-            # Download section
-            st.markdown('<h2 class="section-title">Export Results</h2>', unsafe_allow_html=True)
+            # Download annotated image
+            annotated_pil = Image.fromarray(results['annotated_img'])
+            buf = io.BytesIO()
+            annotated_pil.save(buf, format="PNG")
             
-            col_center = st.columns([1, 2, 1])[1]
-            with col_center:
-                annotated_pil = Image.fromarray(results['annotated_img'])
-                buf = io.BytesIO()
-                annotated_pil.save(buf, format="PNG")
-                
-                st.download_button(
-                    label="Download Annotated Image",
-                    data=buf.getvalue(),
-                    file_name="retail_analysis_annotated.png",
-                    mime="image/png"
-                )
+            st.download_button(
+                label="📥 Download Annotated Image",
+                data=buf.getvalue(),
+                file_name="annotated_image.png",
+                mime="image/png"
+            )
             
         elif st.session_state.file_type == 'video':
             results = st.session_state.results
             
-            # Video metrics
-            st.markdown('<div class="metric-grid">', unsafe_allow_html=True)
-            
-            col_v1, col_v2, col_v3, col_v4 = st.columns(4)
-            
-            with col_v1:
-                total_people = sum(results['avg_people_counts'].values())
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{total_people:.1f}</div>
-                    <div class="metric-label">Total Avg People</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_v2:
-                max_people = max(results['avg_people_counts'].values()) if results['avg_people_counts'] else 0
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{max_people:.1f}</div>
-                    <div class="metric-label">Peak Occupancy</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_v3:
-                avg_people = np.mean(list(results['avg_people_counts'].values())) if results['avg_people_counts'] else 0
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{avg_people:.1f}</div>
-                    <div class="metric-label">Average Occupancy</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_v4:
-                duration = results['num_slices'] * 10
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{duration}s</div>
-                    <div class="metric-label">Duration</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            # Time interval analysis
-            st.markdown('<h2 class="section-title">Time Interval Analysis</h2>', unsafe_allow_html=True)
+            # Frame selection
+            st.subheader("🎯 Frame Analysis")
             
             interval_options = []
             for i in range(results['num_slices']):
@@ -820,200 +496,110 @@ if uploaded_file is not None:
                 avg_count = results['avg_people_counts'].get(i, 0)
                 interval_options.append(f"{start_time}s-{end_time}s (Avg: {avg_count:.1f} people)")
             
-            selected_interval = st.selectbox("Select Time Interval:", interval_options, key="interval_select")
+            selected_interval = st.selectbox("Select Time Interval:", interval_options)
             selected_index = interval_options.index(selected_interval)
             
             if selected_index in results['slice_frames']:
                 frame = results['slice_frames'][selected_index]
                 heatmap = results['heatmaps'][selected_index]
                 
-                # Display frame
-                st.markdown(f"""
-                <div class="image-card">
-                    <h4 class="image-title">Frame Analysis: {selected_interval}</h4>
-                    <div class="image-content">
-                """, unsafe_allow_html=True)
+                # Display frame with bounding boxes
+                st.subheader(f"Frame from {selected_interval}")
                 display_frame = resize_for_display(frame)
-                st.image(display_frame, use_container_width=True)
-                st.markdown('</div></div>', unsafe_allow_html=True)
+                st.image(display_frame, use_container_width=False)
                 
-                # Crowd analysis for this interval
+                # Crowd location analysis
                 crowded_locations = detect_overcrowding(heatmap, overcrowding_sensitivity)
                 
+                # Show crowded locations if any
                 if crowded_locations:
-                    st.markdown(f'<div class="alert alert-warning">⚠ Crowded areas in this interval: {", ".join(crowded_locations)}</div>', unsafe_allow_html=True)
+                    locations_text = ", ".join(crowded_locations)
+                    st.markdown(f"**Crowded Areas:** {locations_text}")
                 
-                # Interval heatmaps
-                st.markdown('<h3 class="section-title">Interval Heatmap Analysis</h3>', unsafe_allow_html=True)
+                # Heatmap visualization
+                st.subheader("🔥 10-Second Interval Heatmap")
                 
                 col5, col6 = st.columns(2)
                 
                 with col5:
-                    st.markdown("""
-                    <div class="image-card">
-                        <h4 class="image-title">Traffic Heatmap</h4>
-                        <div class="image-content">
-                    """, unsafe_allow_html=True)
+                    st.subheader("Raw Heatmap")
                     if heatmap.max() > 0:
-                        clean_heatmap = create_clean_heatmap(heatmap, "", "Blues")
-                        st.image(clean_heatmap, use_container_width=True)
+                        clean_heatmap = create_clean_heatmap(heatmap, f"Traffic Density: {selected_interval}", "Blues")
+                        st.image(clean_heatmap, use_container_width=False)
                     else:
                         st.info("No traffic detected in this interval")
-                    st.markdown('</div></div>', unsafe_allow_html=True)
                 
                 with col6:
-                    st.markdown("""
-                    <div class="image-card">
-                        <h4 class="image-title">Overlay Analysis</h4>
-                        <div class="image-content">
-                    """, unsafe_allow_html=True)
+                    st.subheader("Overlay Heatmap")
                     if heatmap.max() > 0:
-                        # Use original frame for overlay
+                        # Use original frame (without annotations) for overlay
                         original_key = f"{selected_index}_original"
                         if original_key in results['slice_frames']:
                             original_frame = results['slice_frames'][original_key]
                             overlay_img = create_heatmap_overlay(original_frame, heatmap)
-                            st.image(overlay_img, use_container_width=True)
+                            st.image(overlay_img, use_container_width=False)
                         else:
+                            # Fallback to annotated frame if original not available
                             overlay_img = create_heatmap_overlay(frame, heatmap)
-                            st.image(overlay_img, use_container_width=True)
+                            st.image(overlay_img, use_container_width=False)
                     else:
                         display_frame_2 = resize_for_display(frame)
-                        st.image(display_frame_2, use_container_width=True)
-                    st.markdown('</div></div>', unsafe_allow_html=True)
+                        st.image(display_frame_2, use_container_width=False)
             
-            # Timeline chart
-            st.markdown('<h2 class="section-title">Traffic Timeline</h2>', unsafe_allow_html=True)
+            # Overall statistics
+            st.subheader("📈 Video Statistics")
             
+            col7, col8, col9 = st.columns(3)
+            
+            with col7:
+                total_people = sum(results['avg_people_counts'].values())
+                st.metric("Total Average People", f"{total_people:.1f}")
+            
+            with col8:
+                max_people = max(results['avg_people_counts'].values()) if results['avg_people_counts'] else 0
+                st.metric("Peak Occupancy", f"{max_people:.1f}")
+            
+            with col9:
+                avg_people = np.mean(list(results['avg_people_counts'].values())) if results['avg_people_counts'] else 0
+                st.metric("Average Occupancy", f"{avg_people:.1f}")
+            
+            # Time series plot
             if results['avg_people_counts']:
+                fig3, ax3 = plt.subplots(figsize=(12, 4))
                 times = [i * 10 for i in results['avg_people_counts'].keys()]
                 counts = list(results['avg_people_counts'].values())
                 
-                # Create clean matplotlib chart
-                fig, ax = plt.subplots(figsize=(12, 5))
+                ax3.plot(times, counts, marker='o', linewidth=2, markersize=6)
+                ax3.set_xlabel("Time (seconds)")
+                ax3.set_ylabel("Average People Count")
+                ax3.set_title("Foot Traffic Over Time")
+                ax3.grid(True, alpha=0.3)
                 
-                # Minimal styling
-                ax.set_facecolor('#fafafa')
-                fig.patch.set_facecolor('#ffffff')
-                
-                # Plot with clean styling
-                ax.plot(times, counts, linewidth=2.5, color='#111827', marker='o', 
-                       markersize=6, markerfacecolor='#111827', markeredgecolor='white', 
-                       markeredgewidth=2)
-                
-                # Fill area with subtle color
-                ax.fill_between(times, counts, alpha=0.1, color='#111827')
-                
-                # Clean styling
-                ax.set_xlabel("Time (seconds)", fontsize=12, color='#374151')
-                ax.set_ylabel("Average People Count", fontsize=12, color='#374151')
-                ax.set_title("Foot Traffic Over Time", fontsize=16, fontweight='600', 
-                           color='#111827', pad=20)
-                
-                # Minimal grid
-                ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.5)
-                ax.set_axisbelow(True)
-                
-                # Clean spines
-                for spine in ax.spines.values():
-                    spine.set_color('#e5e7eb')
-                    spine.set_linewidth(1)
-                
-                # Set y-axis to start from 0
-                ax.set_ylim(bottom=0)
-                
-                # Clean tick styling
-                ax.tick_params(colors='#6b7280', labelsize=10)
-                
-                plt.tight_layout()
-                st.pyplot(fig)
-                plt.close(fig)
+                st.pyplot(fig3)
             
-            # Download section for video
-            st.markdown('<h2 class="section-title">Export Results</h2>', unsafe_allow_html=True)
-            
-            col_center_video = st.columns([1, 2, 1])[1]
-            with col_center_video:
-                if os.path.exists(results['output_path']):
-                    with open(results['output_path'], "rb") as video_file:
-                        st.download_button(
-                            label="Download Annotated Video",
-                            data=video_file.read(),
-                            file_name="retail_analysis_video.mp4",
-                            mime="video/mp4"
-                        )
+            # Download annotated video
+            if os.path.exists(results['output_path']):
+                with open(results['output_path'], "rb") as video_file:
+                    st.download_button(
+                        label="📥 Download Annotated Video",
+                        data=video_file.read(),
+                        file_name="annotated_video.mp4",
+                        mime="video/mp4"
+                    )
 
-else:
-    # Welcome message
-    st.markdown("""
-    <div class="card">
-        <h3 style="margin-top: 0; color: #111827;">Get Started</h3>
-        <p style="color: #6b7280; margin-bottom: 1.5rem;">
-            Upload an image or video to analyze customer foot traffic patterns with AI-powered detection.
-        </p>
-        
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1.5rem;">
-            <div style="text-align: center;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">👥</div>
-                <div style="font-weight: 500; color: #111827;">People Detection</div>
-                <div style="font-size: 0.875rem; color: #6b7280;">Accurate customer counting</div>
-            </div>
-            <div style="text-align: center;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔥</div>
-                <div style="font-weight: 500; color: #111827;">Traffic Heatmaps</div>
-                <div style="font-size: 0.875rem; color: #6b7280;">Visual flow patterns</div>
-            </div>
-            <div style="text-align: center;">
-                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📊</div>
-                <div style="font-weight: 500; color: #111827;">Analytics</div>
-                <div style="font-size: 0.875rem; color: #6b7280;">Crowding & optimization insights</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True) class="image-title">Original Image</h4>
-                    <div class="image-content">
-                """, unsafe_allow_html=True)
-                display_original = resize_for_display(results['original_img'])
-                st.image(display_original, use_container_width=True)
-                st.markdown('</div></div>', unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown(f"""
-                <div class="image-card">
-                    <h4 class="image-title">People Detection ({results['people_count']} found)</h4>
-                    <div class="image-content">
-                """, unsafe_allow_html=True)
-                display_annotated = resize_for_display(results['annotated_img'])
-                st.image(display_annotated, use_container_width=True)
-                st.markdown('</div></div>', unsafe_allow_html=True)
-            
-            # Heatmap analysis
-            st.markdown('<h2 class="section-title">Traffic Analysis</h2>', unsafe_allow_html=True)
-            
-            # Crowding analysis
-            crowded_locations = detect_overcrowding(results['heatmap'], overcrowding_sensitivity)
-            
-            if crowded_locations:
-                st.markdown(f'<div class="alert alert-warning">⚠ Crowded areas detected: {", ".join(crowded_locations)}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="alert alert-info">✓ No overcrowding detected - good traffic distribution</div>', unsafe_allow_html=True)
-            
-            col3, col4 = st.columns(2)
-            
-            with col3:
-                st.markdown("""
-                <div class="image-card">
-                    <h4 class="image-title">Traffic Heatmap</h4>
-                    <div class="image-content">
-                """, unsafe_allow_html=True)
-                if results['heatmap'].max() > 0:
-                    clean_heatmap = create_clean_heatmap(results['heatmap'], "", "Blues")
-                    st.image(clean_heatmap, use_container_width=True)
-                else:
-                    st.info("No traffic detected")
-                st.markdown('</div></div>', unsafe_allow_html=True)
-            
-            with col4:
-                st.markdown("""
-                <div class="image-card">
-                    <h4
+# Information section
+st.sidebar.markdown("---")
+st.sidebar.subheader("ℹ️ About")
+st.sidebar.info(
+    "This app uses YOLOv11 to detect people in retail environments and create foot traffic heatmaps. "
+    "Upload images or videos to analyze crowd patterns and identify potential overcrowding areas."
+)
+
+st.sidebar.subheader("🎯 Key Features")
+st.sidebar.markdown("""
+- **People Detection**: Real-time person detection with confidence scores
+- **Heatmap Generation**: Visual representation of foot traffic patterns  
+- **Overcrowding Detection**: Automatic identification of crowded areas
+- **Time Analysis**: For videos, analyze traffic patterns over time
+- **Downloadable Results**: Export annotated images and videos
+""")
