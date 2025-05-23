@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import io
 import pandas as pd
-# Standard imports only - no plotly needed
 
 # Configure page with custom theme
 st.set_page_config(
